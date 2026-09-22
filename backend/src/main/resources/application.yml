@@ -1,0 +1,9 @@
+spring:
+  application:
+    name: gamgam-backend
+  profiles:
+    default: local
+
+server:
+  servlet:
+    context-path: /
