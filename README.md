@@ -1,92 +1,92 @@
- # (프로젝트명)
-(개요, 프로젝트 소개)
+# GAMGAM
 
- ## 📝 주요기능
+친구들과 약속 시간과 장소를 조율하고, 약속 당일에는 위치 공유와 도착 현황을 확인하는 서비스입니다.
 
- ## 🔨 기술스택 
-<!-- 
-(백엔드, 프론트, 협업에 사용한 툴, 라이브러리, 프레임워크)
+## 프로젝트 구성
 
-기술스택 배지 추가하는 방법 
-1. https://simpleicons.org/ 에서 기술스택명 검색
-2. 기술스택의 로고, 컬러 HEX 코드를 아래와 같이 입력
-  - https://img.shields.io/badge/<표시될 이름>-<컬러 HEX>?style=for-the-badge&logo=<로고명>
-3. 해당 URL로 마크다운 이미지 첨부
-  - ![이미지명](URL) 형식
--->
+| 영역 | 경로 | 기술 |
+| --- | --- | --- |
+| Frontend | `frontend/` | Flutter, Dart, Material 3 |
+| Backend | `backend/` | Java 21, Spring Boot, Gradle |
 
-(백엔드, 프론트, 협업에 사용한 툴, 라이브러리, 프레임워크)
+## 주요 기능 기획
 
-![intellij](https://img.shields.io/badge/intellij_idea-000000?style=for-the-badge&logo=intellijidea&logoColor=white)
-![vscode](https://img.shields.io/badge/vscode-000000?style=for-the-badge&logo=vscode&logoColor=white)
-![androidstudio](https://img.shields.io/badge/android_studio-3DDC84?style=for-the-badge&logo=androidstudio&logoColor=white)  
+- 가장 가까운 약속, 예정/지난 약속 목록
+- 약속 생성 템플릿: 전체 결정 / 시간 투표 / 장소 투표 / 시간·장소 투표
+- 방 초대, 시간·장소 투표, 미응답자 표시 및 약속 확정
+- 지각 벌칙 및 지각 기준 합의
+- 방별 위치 공유 범위 설정과 당일 도착 현황 지도
+- 콕 찌르기 알림, 도착 순위·지각 결과, 지난 약속 기록과 통계
 
-![docker](https://img.shields.io/badge/docker-2496ED?style=for-the-badge&logo=docker&logoColor=white)
-![nginx](https://img.shields.io/badge/nginx-009639?style=for-the-badge&logo=nginx&logoColor=white)
-![redis](https://img.shields.io/badge/redis-FF4438?style=for-the-badge&logo=redis&logoColor=white)
-![github-action](https://img.shields.io/badge/github_actions-2088FF?style=for-the-badge&logo=githubactions&logoColor=white)
+## Frontend
 
-![react](https://img.shields.io/badge/react-61DAFB?style=for-the-badge&logo=react&logoColor=white)
-![jetpack-compose](https://img.shields.io/badge/jetpack_compose-4285F4?style=for-the-badge&logo=jetpackcompose&logoColor=white)
-![spring](https://img.shields.io/badge/spring-6DB33F?style=for-the-badge&logo=spring&logoColor=white)
+### 실행
 
-| 스택 | 설명 | 용도 |
-|-----|-----|-----|
-| 스택1 | 스택에 대한 설명 | 프로젝트 쓰임새 |
-| ... | ... | ... |
+Flutter SDK와 Android 개발 환경을 설치한 뒤 실행합니다.
 
- ## 🖼️ 스크린샷
-
- ## 🤝 개발협업
- ### 🌲 Branch 
+```powershell
+cd frontend
+flutter pub get
+flutter run
 ```
-main ------- backend/<이름>/(<이슈번호>-)<작업명>    (백엔드 작업)
-     \------ frontend/<이름>/(<이슈번호>-)<작업명>   (프론트 작업)
 
-ex) backend/wonseok/#10-add-animation
-ex) frontend/wonseok/fix-login-not-allowed   (이슈가 없으면)
+연결된 Android 기기나 에뮬레이터가 없으면 웹에서 확인할 수 있습니다.
+
+```powershell
+flutter run -d chrome
 ```
-브랜치 관리 전략은 `main`과 개인 브랜치만이 존재하는 간단한 Github Flow를 따릅니다.
-- `main` 브랜치는 항상 작동 가능한 안정된 상태여야 한다.
-  - 직접 커밋하지 않으며, Pull Request만으로 변경한다.
-- 개인 브랜치에서 작업을 진행한다.
-- 브랜치명은 작업 내용과 직군이 구체적으로 드러나도록 한다.
-  - 브랜치명에 `backend`, `frontend`를 구분한다.
-  - 띄어쓰기는 하이픈(`-`)으로 구분한다.
-  - 브랜치명은 전부 소문자를 사용한다.
 
-프로젝트에 CI/CD를 구성하는 등 규모가 커지면 `develop` 브랜치를 추가하거나 `git flow`로 전환할 수 있습니다. 
+### 구조
 
- ### 🍪 Pull Request
+Flutter는 MVC 형태로 구성합니다.
+
+```text
+frontend/lib/
+├─ data/
+│  └─ mock_appointment_repository.dart  # API 연동 전 목업 데이터
+├─ models/                              # 약속, 참여자, 투표, 위치 공유, 콕 찌르기, 도착 결과
+├─ controllers/                         # 화면 상태·표시 데이터 제어
+├─ routes/
+│  └─ app_router.dart                   # 화면 경로 중앙 관리
+├─ views/                               # 화면 UI
+├─ app.dart                             # MaterialApp 설정
+└─ main.dart                            # 앱 실행 진입점
 ```
-main    ---●---●---●---------● abc (Squash Merge)
-                \           /
-개인브랜치          a---b---c   ('abc' 합쳐진 하나의 커밋으로 병합)
 
-PR 제목: [Backend/Frontend] <이슈번호> <작업명>
-ex) [Backend] #10 프로필 화면에서 로그인 불가하던 문제 해결
-ex) [Backend] 프로필 화면에서 로그인 불가하던 문제 해결     (이슈가 없으면)
+현재 구현된 목업 화면은 홈, 약속 만들기 템플릿 선택, 기록 탭입니다. 목업 데이터에는 예정/지난 약속, 참여자 상태와 ETA, 시간·장소 투표, 위치 공유 단계, 벌칙, 콕 찌르기, 도착 결과가 포함됩니다.
+
+### 라우팅
+
+경로는 `lib/routes/app_router.dart`에서 관리합니다.
+
+```dart
+Navigator.of(context).pushNamed(AppRouter.createAppointment);
 ```
-`main` 브랜치의 커밋은 Pull Request 단위로 쌓으며 이를 위해 **Squash Merge**를 원칙으로 합니다. **Squash Merge**는 브랜치가 병합될 때 커밋들이 PR 제목으로 합쳐지게 됩니다. 커밋은 개인마다 기준이 조금씩 다른 반면, PR/브랜치는 이슈 단위로 생성하므로 일관된 기준으로 커밋을 쌓을 수 있어 히스토리 추적을 용이하게 합니다.
-- 커밋 제목은 **PR 제목**으로 한다.
-    - Backend/Frontend를 구분한다.
-    - 작업 내용을 구체적으로 드러나게 적는다.
-- 커밋 내용은 **PR 내용**으로 한다.
-    - 브랜치에서의 변경점을 상세히 적는다.
-- Pull Request는 작은 작업 단위(200줄 이내 권장)로 한다.
 
- ## 🛠 설치방법
-(다른 개발자가 이 프로젝트를 테스트해볼 수 있도록 프론트, 백엔드 설치/실행 절차 안내)
+새 화면은 `AppRouter`에 경로 상수를 추가한 후 `onGenerateRoute`에 등록합니다.
 
-### 💻 Frontend
+## Backend
 
-### 💻 Backend
+### 실행
 
- ## 🧑‍💻 팀원
-| <img width="100" src="https://github.com/cotidie.png"> | <img width="100" src="https://github.com/github.png"> | 
-|:----------------------:|:----------------------:|
-| [장원석](https://github.com/cotidie) | [팀원](https://github.com/cotidie) |
-| 💻 Android | 💻 역할 |
-| 15기 | 기수 |
+```powershell
+cd backend
+.\gradlew.bat bootRun
+```
 
- 
+서버 기본 주소는 `http://localhost:8080`입니다.
+
+### 테스트
+
+```powershell
+.\gradlew.bat test
+```
+
+Spring Web MVC와 Bean Validation을 포함한 Java 21 Spring Boot 프로젝트이며, 기본 패키지는 `com.gamgam.backend`입니다.
+
+## 개발 순서 제안
+
+1. 목업 데이터를 실제 Spring Boot API로 교체합니다.
+2. 약속 생성부터 투표·확정까지의 화면과 API를 연결합니다.
+3. 인증, 초대 링크, 푸시 알림을 추가합니다.
+4. 지도·위치 권한·실시간 위치 공유 기능을 구현합니다.
