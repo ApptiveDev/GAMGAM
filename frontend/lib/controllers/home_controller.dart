@@ -1,16 +1,14 @@
 import 'package:flutter/foundation.dart';
 
-import '../models/app_info.dart';
+import '../data/mock_appointment_repository.dart';
+import '../models/appointment.dart';
 
 class HomeController extends ChangeNotifier {
-  HomeController({AppInfo? appInfo})
-      : _appInfo = appInfo ??
-            const AppInfo(
-              name: 'GAMGAM',
-              message: 'GAMGAM Flutter app is ready.',
-            );
+  HomeController({MockAppointmentRepository? repository}) : _repository = repository ?? const MockAppointmentRepository();
 
-  final AppInfo _appInfo;
+  final MockAppointmentRepository _repository;
 
-  AppInfo get appInfo => _appInfo;
+  List<Appointment> get upcoming => _repository.appointments.where((appointment) => appointment.status != AppointmentStatus.completed).toList();
+  List<Appointment> get past => _repository.appointments.where((appointment) => appointment.status == AppointmentStatus.completed).toList();
+  Appointment get closestAppointment => upcoming.first;
 }

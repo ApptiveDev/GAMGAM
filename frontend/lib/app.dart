@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 
-import 'views/home/home_page.dart';
+import 'routes/app_router.dart';
 
 class GamgamApp extends StatelessWidget {
   const GamgamApp({super.key});
@@ -14,7 +14,8 @@ class GamgamApp extends StatelessWidget {
         colorScheme: ColorScheme.fromSeed(seedColor: Colors.indigo),
         useMaterial3: true,
       ),
-      home: const HomePage(),
+      initialRoute: AppRouter.home,
+      onGenerateRoute: AppRouter.onGenerateRoute,
     );
   }
 }
