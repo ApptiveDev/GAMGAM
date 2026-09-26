@@ -1,2 +1,5 @@
 # 개인 기획 자료 (공유 안 함)
 docs/
+
+# Local development SDKs
+/.tools/
