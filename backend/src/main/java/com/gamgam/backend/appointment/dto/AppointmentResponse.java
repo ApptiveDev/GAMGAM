@@ -36,7 +36,7 @@ public record AppointmentResponse(
                 // 시간 필드(candidatesTime, confirmedTime)는 DB엔 UTC로 저장돼 있고, 이 응답 DTO로 변환되는 시점에 KST(+09:00)로 바뀐다.
                 KstTimeConverter.toKst(appointment.getCandidatesTime()),
                 KstTimeConverter.toKst(appointment.getConfirmedTime()),
-                appointment.getCandidatesPlace(),
+                List.copyOf(appointment.getCandidatesPlace()),
                 appointment.getConfirmedPlace(),
                 appointment.getPenalty(),
                 appointment.getReward(),
