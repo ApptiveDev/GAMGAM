@@ -76,7 +76,7 @@ public class Appointment {
                        List<Place> candidatesPlace, Place confirmedPlace,
                        PenaltyRule penalty, RewardRule reward,
                        LocationSharingPolicy locationSharing,
-                       AppointmentStatus status, OffsetDateTime createdAt) {
+                       AppointmentStatus status) {
         this.id = id;
         this.name = name;
         this.template = template;
