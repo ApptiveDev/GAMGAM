@@ -15,6 +15,7 @@ import com.gamgam.backend.global.exception.ErrorCode;
 import java.util.List;
 import java.util.UUID;
 
+import com.gamgam.backend.global.util.KstTimeConverter;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -59,8 +60,8 @@ public class AppointmentService {
                 .id(UUID.randomUUID().toString())
                 .name(request.name())
                 .template(request.template())
-                .candidatesTime(request.candidatesTime())
-                .confirmedTime(request.confirmedTime())
+                .candidatesTime(KstTimeConverter.toUtc(request.candidatesTime()))
+                .confirmedTime(KstTimeConverter.toUtc(request.confirmedTime()))
                 .candidatesPlace(toDomainPlaces(request.candidatesPlace()))
                 .confirmedPlace(confirmedPlace)
                 .penalty(penalty)
