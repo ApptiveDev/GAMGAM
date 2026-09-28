@@ -9,8 +9,9 @@ lib/
 │  ├─ widgets/                 Avatar, DashedBorder, BottomCta, PageTitle, 태그/뱃지 …
 │  └─ utils/                   date_text.dart (한국어 날짜 문구, D-day, 카운트다운)
 ├─ data/
-│  ├─ models/                  Appointment, Participant, Place, VoteOption, DecisionTemplate
-│  ├─ repositories/            AppointmentRepository(인터페이스) + Mock 구현
+│  ├─ models/                  Appointment, Participant, Place, VoteOption, DecisionTemplate,
+│  │                           GeoPoint, live_location.dart(공유 범위·당일 현황·콕 찌르기)
+│  ├─ repositories/            AppointmentRepository · LiveLocationRepository(인터페이스) + Mock 구현
 │  └─ mock/                    와이어프레임 목업 데이터
 └─ features/                   화면 = 폴더 하나. 그 화면에서만 쓰는 위젯은 features/<화면>/widgets/
    ├─ shell/                   하단 탭 (홈 / 기록 / 내정보)
@@ -21,7 +22,9 @@ lib/
    ├─ confirmed/               05 확정 완료 + 공유
    ├─ invite/                  초대 링크(/invite/:code)로 입장
    ├─ records/ · profile/      탭
-   └─ location_setting/ · live_map/ · arrival/   핵심기능 #2 자리 (06~09)
+   ├─ location_setting/        06 위치 공유 설정 (방별 공개 범위)
+   ├─ live_map/                07 당일 지도 + 08 콕 찌르기. 지도 SDK는 widgets/live_map_view.dart에서만 쓴다
+   └─ arrival/                 09 도착 완료 (시상대 · 지각 · 정산)
 ```
 
 ## 라우트
@@ -34,7 +37,9 @@ lib/
 | `/appointments/:id` | 03 방 | |
 | `/appointments/:id/penalty` | 04 벌칙 | 방장만 진입 ("확정하기") |
 | `/appointments/:id/confirmed` | 05 확정 | |
-| `/appointments/:id/location-setting` · `live` · `arrival` | 06 · 07~08 · 09 | 핵심기능 #2, 지금은 Placeholder |
+| `/appointments/:id/location-setting` | 06 위치 공유 설정 | `?next=live`면 고른 뒤 당일 지도로. 내정보 탭에서 들어오면 돌아간다 |
+| `/appointments/:id/live` | 07 당일 지도 · 08 콕 찌르기 | `openLiveMap()`으로 연다 — 공개 범위를 아직 안 골랐으면 06을 먼저 거친다 |
+| `/appointments/:id/arrival` | 09 도착 완료 | 모두 도착하면 지도에서 자동으로 넘어온다 |
 | `/invite/:code` | 초대 입장 | 웹 딥링크 겸용. 목업 코드: `BOARD` |
 
 ## 규칙
@@ -43,5 +48,9 @@ lib/
 - **색·간격 하드코딩 대신 `AppColors`** 사용. 포인트 컬러(`AppColors.point`)는 CTA·카운트다운·선택 상태에만.
 - **화면은 `AppointmentRepository`만 안다.** `context.watch<AppointmentRepository>()`로 읽고, 쓰기는 `context.read`로.
   백엔드 API가 나오면 `ApiAppointmentRepository`를 만들어 `app.dart`에서 교체하면 된다.
+- **당일 위치는 `LiveLocationRepository`만 안다.** 목업은 1초 = 1분으로 흘러가는 시뮬레이션(약속 42분 전 → 약 1분 뒤 전원 도착).
+  위치 저장·실시간 구독(WebSocket)·푸시가 나오면 구현체만 교체한다. 콕 찌르기 쿨다운(5분)은 실제 시간으로 센다.
+- **지도는 `LiveMapView` 안에서만.** 지금은 flutter_map + OpenStreetMap 공개 타일(개발용). 카카오맵 등으로 바꿀 때 이 파일만 고친다.
+- **위치는 약속 2시간 전부터 도착할 때까지만** 공유된다. 이 규칙을 문구로 반복해서 안심시킨다.
 - 여러 화면에 걸친 입력값은 플로우 단위 컨트롤러(`ChangeNotifier`)로. 예: `CreateAppointmentController`.
 - 문구는 친근한 "~해요"체. 늦는 사람을 비난하는 표현은 쓰지 않는다.

@@ -1,5 +1,6 @@
 import '../models/appointment.dart';
 import '../models/decision_template.dart';
+import '../models/geo_point.dart';
 import '../models/participant.dart';
 import '../models/place.dart';
 import '../models/vote_option.dart';
@@ -15,8 +16,8 @@ abstract final class MockData {
   /// 새로 만든 방에 링크로 들어오는 친구들 (목업 연출용).
   static const friends = [doyun, seoa, minjun];
 
-  static const yeonnam = Place(name: '연남동 소금집 델리', description: '홍대입구역 도보 6분');
-  static const mangwon = Place(name: '망원 시장 골목', description: '망원역 도보 3분');
+  static const yeonnam = Place(name: '연남동 소금집 델리', description: '홍대입구역 도보 6분', location: GeoPoint(37.5617, 126.9221));
+  static const mangwon = Place(name: '망원 시장 골목', description: '망원역 도보 3분', location: GeoPoint(37.5560, 126.9055));
 
   static List<Appointment> appointments(DateTime now) {
     DateTime at(int days, int hour, [int minute = 0]) => DateTime(now.year, now.month, now.day + days, hour, minute);
@@ -31,7 +32,7 @@ abstract final class MockData {
         status: AppointmentStatus.confirmed,
         participants: const [me, doyun, seoa, minjun, harin],
         confirmedTime: now.add(const Duration(hours: 1, minutes: 42)),
-        confirmedPlace: const Place(name: '연남동 소금집 델리', description: '홍대입구역 3번 출구'),
+        confirmedPlace: const Place(name: '연남동 소금집 델리', description: '홍대입구역 3번 출구', location: GeoPoint(37.5617, 126.9221)),
         penalty: '커피 사기',
         penaltyAgreedIds: [me.id, doyun.id, seoa.id, minjun.id, harin.id],
       ),
@@ -44,7 +45,7 @@ abstract final class MockData {
         status: AppointmentStatus.confirmed,
         participants: const [doyun, me, seoa],
         confirmedTime: at(6, 8),
-        confirmedPlace: const Place(name: '북한산', description: '북한산우이역 2번 출구'),
+        confirmedPlace: const Place(name: '북한산', description: '북한산우이역 2번 출구', location: GeoPoint(37.6630, 127.0125)),
         penalty: '다음 약속 총무',
         lateThresholdMinutes: 15,
         penaltyAgreedIds: [doyun.id, me.id, seoa.id],
@@ -74,7 +75,7 @@ abstract final class MockData {
         status: AppointmentStatus.completed,
         participants: const [seoa, me, doyun, harin],
         confirmedTime: at(-13, 11),
-        confirmedPlace: const Place(name: '성수 카페거리'),
+        confirmedPlace: const Place(name: '성수 카페거리', location: GeoPoint(37.5445, 127.0560)),
         penalty: '커피 사기',
         lateCount: 1,
       ),
@@ -90,7 +91,7 @@ abstract final class MockData {
           TimeOption(id: 't1', value: at(7, 19), voterIds: [seoa.id]),
           TimeOption(id: 't2', value: at(7, 20), voterIds: [harin.id]),
         ],
-        placeOptions: const [PlaceOption(id: 'p1', value: Place(name: '홍대 레드버튼', description: '홍대입구역 도보 4분'))],
+        placeOptions: const [PlaceOption(id: 'p1', value: Place(name: '홍대 레드버튼', description: '홍대입구역 도보 4분', location: GeoPoint(37.5548, 126.9225)))],
       ),
     ];
   }

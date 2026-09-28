@@ -117,6 +117,12 @@ class MockAppointmentRepository extends AppointmentRepository {
     _update(appointmentId, (a) => a.copyWith(status: AppointmentStatus.confirmed, confirmedTime: a.time, confirmedPlace: a.place));
   }
 
+  @override
+  Future<void> complete(String appointmentId, {required int lateCount}) async {
+    await Future.delayed(_latency);
+    _update(appointmentId, (a) => a.copyWith(status: AppointmentStatus.completed, lateCount: lateCount));
+  }
+
   void _update(String id, Appointment Function(Appointment) change) {
     final current = _items[id];
     if (current == null) return;

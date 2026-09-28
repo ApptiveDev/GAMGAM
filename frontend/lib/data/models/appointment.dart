@@ -91,6 +91,7 @@ class Appointment {
     String? penalty,
     int? lateThresholdMinutes,
     List<String>? penaltyAgreedIds,
+    int? lateCount,
   }) =>
       Appointment(
         id: id,
@@ -107,6 +108,6 @@ class Appointment {
         penalty: penalty ?? this.penalty,
         lateThresholdMinutes: lateThresholdMinutes ?? this.lateThresholdMinutes,
         penaltyAgreedIds: penaltyAgreedIds ?? this.penaltyAgreedIds,
-        lateCount: lateCount,
+        lateCount: lateCount ?? this.lateCount,
       );
 }

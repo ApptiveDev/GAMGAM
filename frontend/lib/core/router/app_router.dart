@@ -54,7 +54,13 @@ GoRouter createRouter({String initialLocation = AppRoutes.home}) => GoRouter(
           routes: [
             GoRoute(path: 'penalty', builder: (_, state) => PenaltyPage(appointmentId: state.pathParameters['id']!)),
             GoRoute(path: 'confirmed', builder: (_, state) => ConfirmedPage(appointmentId: state.pathParameters['id']!)),
-            GoRoute(path: 'location-setting', builder: (_, state) => LocationSettingPage(appointmentId: state.pathParameters['id']!)),
+            GoRoute(
+              path: 'location-setting',
+              builder: (_, state) => LocationSettingPage(
+                appointmentId: state.pathParameters['id']!,
+                thenLiveMap: state.uri.queryParameters['next'] == 'live',
+              ),
+            ),
             GoRoute(path: 'live', builder: (_, state) => LiveMapPage(appointmentId: state.pathParameters['id']!)),
             GoRoute(path: 'arrival', builder: (_, state) => ArrivalPage(appointmentId: state.pathParameters['id']!)),
           ],

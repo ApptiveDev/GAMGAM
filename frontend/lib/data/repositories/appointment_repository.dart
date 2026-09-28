@@ -43,4 +43,7 @@ abstract class AppointmentRepository extends ChangeNotifier {
 
   /// 1위 후보로 확정. 방장만 할 수 있다.
   Future<void> confirm(String appointmentId);
+
+  /// 09 "정산 완료" — 모두 도착한 약속을 지난 약속으로 넘긴다.
+  Future<void> complete(String appointmentId, {required int lateCount});
 }
