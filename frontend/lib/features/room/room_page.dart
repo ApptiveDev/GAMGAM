@@ -12,6 +12,7 @@ import '../../core/widgets/date_time_picker.dart';
 import '../../core/widgets/layout.dart';
 import '../../data/models/appointment.dart';
 import '../../data/repositories/appointment_repository.dart';
+import '../live_map/open_live_map.dart';
 import 'widgets/place_vote_card.dart';
 import 'widgets/time_vote_tile.dart';
 
@@ -101,8 +102,8 @@ class RoomPage extends StatelessWidget {
       return BottomCta(children: [
         OutlinedButton(onPressed: () => context.push(AppRoutes.confirmed(a.id)), child: const Text('확정 카드 보기')),
         const SizedBox(height: 8),
-        // 핵심기능 #2 진입점
-        FilledButton(onPressed: () => context.push(AppRoutes.liveMap(a.id)), child: const Text('당일 지도 열기')),
+        // 핵심기능 #2 진입점. 공개 범위를 아직 안 골랐으면 06을 먼저 거친다.
+        FilledButton(onPressed: () => openLiveMap(context, a.id), child: const Text('당일 지도 열기')),
       ]);
     }
     return null;

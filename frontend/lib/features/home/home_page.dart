@@ -5,6 +5,7 @@ import 'package:provider/provider.dart';
 import '../../core/router/app_routes.dart';
 import '../../core/theme/app_colors.dart';
 import '../../data/repositories/appointment_repository.dart';
+import '../live_map/open_live_map.dart';
 import 'widgets/appointment_tile.dart';
 import 'widgets/closest_appointment_card.dart';
 import 'widgets/join_by_code_dialog.dart';
@@ -52,7 +53,11 @@ class HomePage extends StatelessWidget {
             ]),
             const SizedBox(height: 16),
             if (closest != null)
-              ClosestAppointmentCard(appointment: closest, onTap: () => context.push(AppRoutes.room(closest.id)))
+              ClosestAppointmentCard(
+                appointment: closest,
+                // 위치 공유 중이면 바로 당일 지도로.
+                onTap: () => closest.isSharingLocation(DateTime.now()) ? openLiveMap(context, closest.id) : context.push(AppRoutes.room(closest.id)),
+              )
             else
               const _EmptyCard(),
             if (scheduled.isNotEmpty) ...[
