@@ -26,7 +26,7 @@ public record CreateAppointmentRequest(
         @NotNull AppointmentTemplate template,
         List<@NotNull @Future OffsetDateTime> candidatesTime,
         @Future OffsetDateTime confirmedTime,
-        List<@Valid PlaceRequest> candidatesPlace,
+        List<@NotNull @Valid PlaceRequest> candidatesPlace,
         @Valid PlaceRequest confirmedPlace,
         @Valid PenaltyRequest penalty,
         @Valid RewardRequest reward,
