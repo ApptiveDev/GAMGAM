@@ -16,8 +16,10 @@ abstract final class AppRoutes {
   static String penalty(String id) => '/appointments/$id/penalty';
   static String confirmed(String id) => '/appointments/$id/confirmed';
 
-  // 핵심기능 #2 — 당일 위치 공유 (자리만 잡아둠)
-  static String locationSetting(String id) => '/appointments/$id/location-setting';
+  // 핵심기능 #2 — 당일 위치 공유
+  // 당일 지도는 보통 openLiveMap()으로 연다. 공개 범위를 아직 안 골랐으면 06을 먼저 거친다.
+  static String locationSetting(String id, {bool thenLiveMap = false}) =>
+      '/appointments/$id/location-setting${thenLiveMap ? '?next=live' : ''}';
   static String liveMap(String id) => '/appointments/$id/live';
   static String arrival(String id) => '/appointments/$id/arrival';
 
