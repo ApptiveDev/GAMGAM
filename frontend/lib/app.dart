@@ -6,8 +6,8 @@ import 'package:provider/provider.dart';
 import 'core/router/app_router.dart';
 import 'core/theme/app_theme.dart';
 import 'data/repositories/appointment_repository.dart';
+import 'data/repositories/api_appointment_repository.dart';
 import 'data/repositories/live_location_repository.dart';
-import 'data/repositories/mock_appointment_repository.dart';
 import 'data/repositories/mock_live_location_repository.dart';
 
 class GamgamApp extends StatefulWidget {
@@ -23,7 +23,7 @@ class GamgamApp extends StatefulWidget {
 }
 
 class _GamgamAppState extends State<GamgamApp> {
-  late final AppointmentRepository _repository = widget.repository ?? MockAppointmentRepository();
+  late final AppointmentRepository _repository = widget.repository ?? ApiAppointmentRepository();
   late final LiveLocationRepository _liveRepository = widget.liveRepository ?? MockLiveLocationRepository(meId: _repository.me.id);
   late final GoRouter _router = widget.initialLocation == null ? createRouter() : createRouter(initialLocation: widget.initialLocation!);
 
