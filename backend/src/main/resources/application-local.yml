@@ -1,5 +1,22 @@
+spring:
+  datasource:
+    # h2가 PostgreSQL처럼 동작 (이후 PostgreSQL 확장 대비)
+    url: jdbc:h2:mem:gamgam;MODE=PostgreSQL;DATABASE_TO_LOWER=TRUE;DEFAULT_NULL_ORDERING=HIGH
+    username: sa
+    password:
+  h2:
+    console:
+      enabled: true
+  jpa:
+    hibernate:
+      ddl-auto: create-drop
+    show-sql: true
+
 app:
   cors:
     allowed-origins:
       - "http://localhost:*"
       - "http://127.0.0.1:*"
+  #  생성할 공유 링크 주소(프론트엔드)
+  share:
+    base-url: http://localhost:3000
