@@ -28,6 +28,11 @@ public class AppointmentController {
                 .body(ApiResponse.ok(service.create(request)));
     }
 
+    @GetMapping
+    public ApiResponse<java.util.List<AppointmentResponse>> list() {
+        return ApiResponse.ok(service.list());
+    }
+
     @GetMapping("/{id}")
     public ApiResponse<AppointmentResponse> get(@PathVariable String id) {
         return ApiResponse.ok(service.get(id));

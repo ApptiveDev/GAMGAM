@@ -123,6 +123,15 @@ class MockAppointmentRepository extends AppointmentRepository {
     _update(appointmentId, (a) => a.copyWith(status: AppointmentStatus.completed, lateCount: lateCount));
   }
 
+  /// 서버에서 받은 약속을 기존 목업 상태에 합친다. API가 아직 없는 화면 기능은
+  /// 이 저장소의 목업 동작을 계속 사용한다.
+  void mergeServerAppointments(Iterable<Appointment> appointments) {
+    for (final appointment in appointments) {
+      _items[appointment.id] = appointment;
+    }
+    notifyListeners();
+  }
+
   void _update(String id, Appointment Function(Appointment) change) {
     final current = _items[id];
     if (current == null) return;

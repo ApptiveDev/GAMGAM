@@ -79,6 +79,12 @@ public class AppointmentService {
                 .orElseThrow(() -> new BusinessException(ErrorCode.APPOINTMENT_NOT_FOUND));
     }
 
+    public List<AppointmentResponse> list() {
+        return repository.findAllByOrderByCreatedAtDesc().stream()
+                .map(this::toResponse)
+                .toList();
+    }
+
     // DTO의 PlaceRequest 목록을 도메인 vo인 Place 목록으로 변환
     private static List<Place> toDomainPlaces(List<CreateAppointmentRequest.PlaceRequest> requests) {
         if (requests == null) {
