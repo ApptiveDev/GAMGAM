@@ -4,10 +4,11 @@
 lib/
 ├─ main.dart / app.dart        앱 진입점. 테마·라우터·Repository를 여기서 꽂는다
 ├─ core/                       기능과 상관없이 어디서나 쓰는 것
+│  ├─ config/                  invite_link.dart (초대 링크 주소. 도메인 정해지면 --dart-define으로)
 │  ├─ router/                  app_routes.dart(경로 상수) · app_router.dart(go_router 설정)
 │  ├─ theme/                   app_colors.dart(디자인 토큰) · app_theme.dart
 │  ├─ widgets/                 Avatar, DashedBorder, BottomCta, PageTitle, 태그/뱃지 …
-│  └─ utils/                   date_text.dart (한국어 날짜 문구, D-day, 카운트다운)
+│  └─ utils/                   date_text.dart (한국어 날짜 문구, D-day, 카운트다운) · app_install.dart (스토어 이동)
 ├─ data/
 │  ├─ models/                  Appointment, Participant, Place, VoteOption, DecisionTemplate,
 │  │                           GeoPoint, live_location.dart(공유 범위·당일 현황·콕 찌르기)
@@ -20,7 +21,7 @@ lib/
    ├─ room/                    03 방 — 초대 링크, 시간·장소 투표
    ├─ penalty/                 04 벌칙 정하기
    ├─ confirmed/               05 확정 완료 + 공유
-   ├─ invite/                  초대 링크(/invite/:code)로 입장
+   ├─ invite/                  초대 링크(/invite/:code)로 입장. 앱 = invite_page, 웹 = web_invite_page(게스트)
    ├─ records/ · profile/      탭
    ├─ location_setting/        06 위치 공유 설정 (방별 공개 범위)
    ├─ live_map/                07 당일 지도 + 08 콕 찌르기. 지도 SDK는 widgets/live_map_view.dart에서만 쓴다
@@ -40,7 +41,7 @@ lib/
 | `/appointments/:id/location-setting` | 06 위치 공유 설정 | `?next=live`면 고른 뒤 당일 지도로. 내정보 탭에서 들어오면 돌아간다 |
 | `/appointments/:id/live` | 07 당일 지도 · 08 콕 찌르기 | `openLiveMap()`으로 연다 — 공개 범위를 아직 안 골랐으면 06을 먼저 거친다 |
 | `/appointments/:id/arrival` | 09 도착 완료 | 모두 도착하면 지도에서 자동으로 넘어온다 |
-| `/invite/:code` | 초대 입장 | 웹 딥링크 겸용. 목업 코드: `BOARD` |
+| `/invite/:code` | 초대 입장 | 앱: 로그인한 내가 바로 참여 (목업 코드 `BOARD`)<br>웹: 이름만 넣고 게스트 참여 → 투표 → 확정되면 앱 설치 유도 (`/#/invite/DONGGI` 조율 중, `/#/invite/HONGDAE` 확정) |
 
 ## 규칙
 
@@ -53,4 +54,6 @@ lib/
 - **지도는 `LiveMapView` 안에서만.** 지금은 flutter_map + OpenStreetMap 공개 타일(개발용). 카카오맵 등으로 바꿀 때 이 파일만 고친다.
 - **위치는 약속 2시간 전부터 도착할 때까지만** 공유된다. 이 규칙을 문구로 반복해서 안심시킨다.
 - 여러 화면에 걸친 입력값은 플로우 단위 컨트롤러(`ChangeNotifier`)로. 예: `CreateAppointmentController`.
+- **웹 게스트는 이름만으로 참여**한다. 같은 이름이 있으면 `지수(2)`처럼 번호가 붙는다. 앱이 필요한 기능(당일 지도 등)은 확정 뒤 앱 설치로 안내한다.
+- **투표 마감**은 방장이 약속을 만들 때 정한다. 마감이 지나면 투표만 막히고, 확정은 방장이 직접 한다.
 - 문구는 친근한 "~해요"체. 늦는 사람을 비난하는 표현은 쓰지 않는다.

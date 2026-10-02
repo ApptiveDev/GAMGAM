@@ -57,6 +57,7 @@ abstract final class MockData {
         hostId: me.id,
         inviteCode: 'DONGGI',
         participants: const [me, doyun, seoa, minjun],
+        voteDeadline: at(3, 21),
         timeOptions: [
           TimeOption(id: 't1', value: at(4, 19), voterIds: [me.id, doyun.id]),
           TimeOption(id: 't2', value: at(5, 19, 30), voterIds: [doyun.id]),
@@ -80,6 +81,7 @@ abstract final class MockData {
         lateCount: 1,
       ),
       // 내가 아직 참여하지 않은 방. 코드 BOARD 로 초대 입장을 시험해볼 수 있다.
+      // 웹에서는 /#/invite/DONGGI (투표 중), /#/invite/HONGDAE (확정) 로 게스트 화면을 볼 수 있다.
       Appointment(
         id: 'a-board',
         name: '금요일 보드게임',
@@ -87,6 +89,7 @@ abstract final class MockData {
         hostId: seoa.id,
         inviteCode: 'BOARD',
         participants: const [seoa, harin],
+        voteDeadline: at(6, 21),
         timeOptions: [
           TimeOption(id: 't1', value: at(7, 19), voterIds: [seoa.id]),
           TimeOption(id: 't2', value: at(7, 20), voterIds: [harin.id]),

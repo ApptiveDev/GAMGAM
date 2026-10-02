@@ -27,15 +27,22 @@ abstract class AppointmentRepository extends ChangeNotifier {
     required DecisionTemplate template,
     required List<DateTime> times,
     required List<Place> places,
+    DateTime? voteDeadline,
   });
 
   Future<void> join(String appointmentId);
 
-  /// 시간은 중복 투표 → 토글.
-  Future<void> toggleTimeVote(String appointmentId, String optionId);
+  /// 웹 초대 링크로 들어와 이 브라우저에서 참여한 게스트. 아직 참여 전이면 null.
+  Participant? guestOf(String appointmentId);
+
+  /// 이름만으로 게스트 참여. 같은 이름이 있으면 번호를 붙여서 돌려준다.
+  Future<Participant> joinAsGuest(String appointmentId, String name);
+
+  /// 시간은 중복 투표 → 토글. [voterId]를 안 주면 [me]로 투표한다. 마감 뒤에는 무시된다.
+  Future<void> toggleTimeVote(String appointmentId, String optionId, {String? voterId});
 
   /// 장소는 한 곳만 투표.
-  Future<void> votePlace(String appointmentId, String optionId);
+  Future<void> votePlace(String appointmentId, String optionId, {String? voterId});
 
   Future<void> addTimeOption(String appointmentId, DateTime time);
 

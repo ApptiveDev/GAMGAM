@@ -11,6 +11,7 @@ class CreateAppointmentController extends ChangeNotifier {
   String _name = '';
   final List<DateTime> _times = [];
   final List<Place> _places = [];
+  DateTime? _voteDeadline;
   bool _submitting = false;
 
   /// 투표 항목은 후보가 이만큼 있어야 투표가 된다.
@@ -20,12 +21,18 @@ class CreateAppointmentController extends ChangeNotifier {
   String get name => _name;
   List<DateTime> get times => List.unmodifiable(_times);
   List<Place> get places => List.unmodifiable(_places);
+  DateTime? get voteDeadline => _voteDeadline;
   bool get submitting => _submitting;
 
   bool get canGoToDetails => _name.trim().isNotEmpty;
   bool get timesReady => _template.votesTime ? _times.length >= minVoteOptions : _times.length == 1;
   bool get placesReady => _template.votesPlace ? _places.length >= minVoteOptions : _places.length == 1;
-  bool get canSubmit => timesReady && placesReady && !_submitting;
+
+  /// 투표가 있으면 마감이 필요하고, 마감은 가장 이른 시간 후보보다 앞서야 한다.
+  bool get deadlineBeforeTimes => _voteDeadline == null || _times.isEmpty || _voteDeadline!.isBefore(_times.first);
+  bool get deadlineReady => !_template.hasVote || (_voteDeadline != null && deadlineBeforeTimes);
+
+  bool get canSubmit => timesReady && placesReady && deadlineReady && !_submitting;
 
   void selectTemplate(DecisionTemplate template) {
     _template = template;
@@ -53,6 +60,11 @@ class CreateAppointmentController extends ChangeNotifier {
     notifyListeners();
   }
 
+  void setVoteDeadline(DateTime deadline) {
+    _voteDeadline = deadline;
+    notifyListeners();
+  }
+
   void addPlace(Place place) {
     if (!_template.votesPlace) _places.clear();
     _places.add(place);
@@ -68,7 +80,13 @@ class CreateAppointmentController extends ChangeNotifier {
     _submitting = true;
     notifyListeners();
     try {
-      return await repository.create(name: _name.trim(), template: _template, times: _times, places: _places);
+      return await repository.create(
+        name: _name.trim(),
+        template: _template,
+        times: _times,
+        places: _places,
+        voteDeadline: _template.hasVote ? _voteDeadline : null,
+      );
     } finally {
       _submitting = false;
       notifyListeners();

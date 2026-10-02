@@ -53,7 +53,12 @@ class RoomPage extends StatelessWidget {
   List<Widget> _votingSections(BuildContext context, AppointmentRepository repo, Appointment a) {
     final me = repo.me;
     final t = a.template;
+    final closed = a.isVoteClosed(DateTime.now());
     return [
+      if (a.voteDeadline case final deadline?) ...[
+        _Notice(closed ? '투표가 마감됐어요. 방장이 확정하면 알려드릴게요' : '투표 마감 · ${DateText.dateTime(deadline)}까지'),
+        const SizedBox(height: 20),
+      ],
       if (t.votesTime) ...[
         const SectionHeader('시간 투표', trailing: '중복 선택 가능'),
         for (final o in a.timeOptions)
@@ -61,15 +66,16 @@ class RoomPage extends StatelessWidget {
             option: o,
             voters: a.participants.where((p) => o.voterIds.contains(p.id)).toList(),
             voted: o.votedBy(me.id),
-            onTap: () => repo.toggleTimeVote(a.id, o.id),
+            onTap: closed ? null : () => repo.toggleTimeVote(a.id, o.id),
           ),
-        DashedAddButton(
-          label: '다른 시간 제안하기',
-          onTap: () async {
-            final picked = await pickDateTime(context, initial: a.time);
-            if (picked != null) repo.addTimeOption(a.id, picked);
-          },
-        ),
+        if (!closed)
+          DashedAddButton(
+            label: '다른 시간 제안하기',
+            onTap: () async {
+              final picked = await pickDateTime(context, initial: a.time);
+              if (picked != null) repo.addTimeOption(a.id, picked);
+            },
+          ),
         const Padding(padding: EdgeInsets.symmetric(vertical: 20), child: Divider()),
       ] else
         _FixedRow(label: '시간', value: a.time == null ? '-' : DateText.dateTime(a.time!), note: '방장이 정함'),
@@ -81,11 +87,11 @@ class RoomPage extends StatelessWidget {
             total: a.participants.length,
             leading: o == a.placeOptions.reduce((x, y) => y.voteCount > x.voteCount ? y : x) && o.voteCount > 0,
             voted: o.votedBy(me.id),
-            onTap: () => repo.votePlace(a.id, o.id),
+            onTap: closed ? null : () => repo.votePlace(a.id, o.id),
           ),
       ] else
         _FixedRow(label: '장소', value: a.place?.name ?? '-', note: '방장이 정함'),
-      if (a.pendingVoterCount > 0) ...[
+      if (a.pendingVoterCount > 0 && !closed) ...[
         const SizedBox(height: 16),
         _PendingRow(count: a.pendingVoterCount),
       ],

@@ -12,7 +12,8 @@ class PlaceVoteCard extends StatelessWidget {
   final int total;
   final bool leading;
   final bool voted;
-  final VoidCallback onTap;
+  /// null이면 투표 마감.
+  final VoidCallback? onTap;
 
   @override
   Widget build(BuildContext context) {

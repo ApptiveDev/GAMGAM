@@ -1,5 +1,6 @@
 import 'dart:math';
 
+import '../../core/config/invite_link.dart';
 import '../mock/mock_data.dart';
 import '../models/appointment.dart';
 import '../models/decision_template.dart';
@@ -13,10 +14,13 @@ class MockAppointmentRepository extends AppointmentRepository {
   MockAppointmentRepository({DateTime? now}) : _items = {for (final a in MockData.appointments(now ?? DateTime.now())) a.id: a};
 
   final Map<String, Appointment> _items;
+
+  /// 약속 id → 이 브라우저의 게스트. 목업이라 새로고침하면 사라진다.
+  // TODO: 백엔드 게스트 토큰이 나오면 브라우저 저장소에 보관한다.
+  final Map<String, Participant> _guests = {};
   final _random = Random();
 
   static const _latency = Duration(milliseconds: 250);
-  static const _linkBase = 'https://gamgam.app/invite';
 
   @override
   Participant get me => MockData.me;
@@ -31,13 +35,14 @@ class MockAppointmentRepository extends AppointmentRepository {
   Appointment? findByInviteCode(String code) {
     final normalized = code.trim().toUpperCase();
     for (final a in _items.values) {
-      if (a.inviteCode == normalized) return a;
+      // 서버 약속은 소문자 UUID를 초대 코드로 쓰므로 대소문자를 무시하고 비교한다.
+      if (a.inviteCode.toUpperCase() == normalized) return a;
     }
     return null;
   }
 
   @override
-  String inviteLink(Appointment appointment) => '$_linkBase/${appointment.inviteCode}';
+  String inviteLink(Appointment appointment) => InviteLink.of(appointment.inviteCode);
 
   @override
   Future<Appointment> create({
@@ -45,6 +50,7 @@ class MockAppointmentRepository extends AppointmentRepository {
     required DecisionTemplate template,
     required List<DateTime> times,
     required List<Place> places,
+    DateTime? voteDeadline,
   }) async {
     await Future.delayed(_latency);
     final id = 'a-${DateTime.now().microsecondsSinceEpoch}';
@@ -58,6 +64,7 @@ class MockAppointmentRepository extends AppointmentRepository {
       participants: [me, ...MockData.friends],
       timeOptions: [for (final (i, t) in times.indexed) TimeOption(id: 't$i', value: t)],
       placeOptions: [for (final (i, p) in places.indexed) PlaceOption(id: 'p$i', value: p)],
+      voteDeadline: template.hasVote ? voteDeadline : null,
     );
     _items[id] = appointment;
     notifyListeners();
@@ -71,23 +78,41 @@ class MockAppointmentRepository extends AppointmentRepository {
   }
 
   @override
-  Future<void> toggleTimeVote(String appointmentId, String optionId) async {
-    _update(appointmentId, (a) => a.copyWith(
+  Participant? guestOf(String appointmentId) => _guests[appointmentId];
+
+  @override
+  Future<Participant> joinAsGuest(String appointmentId, String name) async {
+    await Future.delayed(_latency);
+    final existing = _guests[appointmentId];
+    if (existing != null) return existing;
+    final a = _items[appointmentId];
+    if (a == null) throw StateError('약속을 찾을 수 없어요.');
+    final guest = Participant(id: 'g-${DateTime.now().microsecondsSinceEpoch}', name: a.uniqueName(name.trim()), hasApp: false);
+    _guests[appointmentId] = guest;
+    _update(appointmentId, (a) => a.copyWith(participants: [...a.participants, guest]));
+    return guest;
+  }
+
+  @override
+  Future<void> toggleTimeVote(String appointmentId, String optionId, {String? voterId}) async {
+    final uid = voterId ?? me.id;
+    _updateVote(appointmentId, (a) => a.copyWith(
           timeOptions: [
             for (final o in a.timeOptions)
-              o.id == optionId ? o.copyWith(voterIds: o.votedBy(me.id) ? (List.of(o.voterIds)..remove(me.id)) : [...o.voterIds, me.id]) : o,
+              o.id == optionId ? o.copyWith(voterIds: o.votedBy(uid) ? (List.of(o.voterIds)..remove(uid)) : [...o.voterIds, uid]) : o,
           ],
         ));
   }
 
   @override
-  Future<void> votePlace(String appointmentId, String optionId) async {
-    _update(appointmentId, (a) => a.copyWith(
+  Future<void> votePlace(String appointmentId, String optionId, {String? voterId}) async {
+    final uid = voterId ?? me.id;
+    _updateVote(appointmentId, (a) => a.copyWith(
           placeOptions: [
             for (final o in a.placeOptions)
               o.copyWith(voterIds: [
-                ...o.voterIds.where((id) => id != me.id),
-                if (o.id == optionId) me.id,
+                ...o.voterIds.where((id) => id != uid),
+                if (o.id == optionId) uid,
               ]),
           ],
         ));
@@ -130,6 +155,13 @@ class MockAppointmentRepository extends AppointmentRepository {
       _items[appointment.id] = appointment;
     }
     notifyListeners();
+  }
+
+  /// 마감이 지난 투표는 서버에서도 거절된다고 가정한다.
+  void _updateVote(String id, Appointment Function(Appointment) change) {
+    final current = _items[id];
+    if (current == null || current.isVoteClosed(DateTime.now())) return;
+    _update(id, change);
   }
 
   void _update(String id, Appointment Function(Appointment) change) {

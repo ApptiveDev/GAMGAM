@@ -6,6 +6,7 @@ import 'package:provider/provider.dart';
 
 import '../../core/router/app_routes.dart';
 import '../../core/theme/app_colors.dart';
+import '../../core/utils/app_install.dart';
 import '../../core/utils/date_text.dart';
 import '../../core/widgets/avatar.dart';
 import '../../core/widgets/layout.dart';
@@ -46,7 +47,7 @@ class ConfirmedPage extends StatelessWidget {
       bottomNavigationBar: BottomCta(children: [
         // 웹(설치 전)에서는 설치 유도, 앱에서는 홈으로.
         if (kIsWeb)
-          FilledButton(onPressed: () {/* TODO: 스토어 링크 */}, child: const Text('앱 설치하기'))
+          FilledButton(onPressed: () => AppInstall.open(context), child: const Text('앱 설치하기'))
         else
           FilledButton(onPressed: () => context.go(AppRoutes.home), child: const Text('홈으로')),
         const SizedBox(height: 8),

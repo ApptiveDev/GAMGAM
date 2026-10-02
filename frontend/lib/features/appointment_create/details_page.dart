@@ -8,6 +8,7 @@ import '../../core/utils/date_text.dart';
 import '../../core/widgets/dashed_add_button.dart';
 import '../../core/widgets/date_time_picker.dart';
 import '../../core/widgets/layout.dart';
+import '../../data/models/appointment.dart';
 import '../../data/models/place.dart';
 import '../../data/repositories/appointment_repository.dart';
 import 'create_appointment_controller.dart';
@@ -20,10 +21,27 @@ class DetailsPage extends StatelessWidget {
 
   Future<void> _submit(BuildContext context) async {
     final draft = context.read<CreateAppointmentController>();
-    final appointment = await draft.submit(context.read<AppointmentRepository>());
+    final Appointment appointment;
+    try {
+      appointment = await draft.submit(context.read<AppointmentRepository>());
+    } catch (_) {
+      if (context.mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('방을 만들지 못했어요. 잠시 후 다시 시도해주세요')));
+      }
+      return;
+    }
     if (!context.mounted) return;
     // 투표가 있으면 방에서 투표부터, 없으면 바로 벌칙 정하기로. (go 라서 뒤로가면 방이 나온다)
     context.go(draft.template.hasVote ? AppRoutes.room(appointment.id) : AppRoutes.penalty(appointment.id));
+  }
+
+  Future<void> _pickDeadline(BuildContext context, CreateAppointmentController draft) async {
+    // 기본값: 가장 빠른 시간 후보 2시간 전. 그게 이미 지났으면 내일 밤 9시.
+    final now = DateTime.now();
+    final beforeFirst = draft.times.firstOrNull?.subtract(const Duration(hours: 2));
+    final fallback = beforeFirst != null && beforeFirst.isAfter(now) ? beforeFirst : DateTime(now.year, now.month, now.day + 1, 21);
+    final picked = await pickDateTime(context, initial: draft.voteDeadline ?? fallback);
+    if (picked != null) draft.setVoteDeadline(picked);
   }
 
   @override
@@ -53,6 +71,16 @@ class DetailsPage extends StatelessWidget {
           SectionHeader(t.votesPlace ? '장소 후보' : '장소', trailing: t.votesPlace ? '친구들이 한 곳을 골라요' : null),
           for (final place in draft.places) _OptionRow(title: place.name, onRemove: () => draft.removePlace(place)),
           if (t.votesPlace || draft.places.isEmpty) _PlaceInput(onAdd: draft.addPlace),
+          if (t.hasVote) ...[
+            const SizedBox(height: 32),
+            const SectionHeader('투표 마감', trailing: '마감 뒤엔 방장이 확정해요'),
+            if (draft.voteDeadline case final deadline?)
+              _OptionRow(title: '${DateText.dateTime(deadline)}까지', onTap: () => _pickDeadline(context, draft))
+            else
+              DashedAddButton(label: '마감 기한 선택', onTap: () => _pickDeadline(context, draft)),
+            if (!draft.deadlineBeforeTimes)
+              const Text('마감은 가장 빠른 시간 후보보다 앞서야 해요', style: TextStyle(fontSize: 12, color: AppColors.point)),
+          ],
         ],
       ),
       bottomNavigationBar: BottomCta(children: [
@@ -66,10 +94,13 @@ class DetailsPage extends StatelessWidget {
 }
 
 class _OptionRow extends StatelessWidget {
-  const _OptionRow({required this.title, required this.onRemove});
+  const _OptionRow({required this.title, this.onRemove, this.onTap});
 
   final String title;
-  final VoidCallback onRemove;
+  final VoidCallback? onRemove;
+
+  /// 탭해서 다시 고르는 행(투표 마감). 삭제 대신 수정 아이콘이 붙는다.
+  final VoidCallback? onTap;
 
   @override
   Widget build(BuildContext context) => Container(
@@ -78,7 +109,8 @@ class _OptionRow extends StatelessWidget {
         decoration: BoxDecoration(borderRadius: BorderRadius.circular(14), border: Border.all(color: AppColors.border)),
         child: Row(children: [
           Expanded(child: Text(title, style: const TextStyle(fontSize: 15, fontWeight: FontWeight.w500, color: AppColors.textTitle))),
-          IconButton(onPressed: onRemove, icon: const Icon(Icons.close, size: 18, color: AppColors.textMuted), tooltip: '삭제'),
+          if (onRemove != null) IconButton(onPressed: onRemove, icon: const Icon(Icons.close, size: 18, color: AppColors.textMuted), tooltip: '삭제'),
+          if (onTap != null) IconButton(onPressed: onTap, icon: const Icon(Icons.edit_calendar_outlined, size: 18, color: AppColors.textMuted), tooltip: '다시 고르기'),
         ]),
       );
 }

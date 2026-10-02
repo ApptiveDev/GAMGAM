@@ -41,24 +41,32 @@ class ApiAppointmentRepository extends MockAppointmentRepository {
     required DecisionTemplate template,
     required List<DateTime> times,
     required List<Place> places,
+    DateTime? voteDeadline,
   }) async {
-    final response = await _client.post(
-      Uri.parse('$_baseUrl/api/v1/appointments'),
-      headers: {'Content-Type': 'application/json'},
-      body: jsonEncode({
-        'name': name,
-        'template': _templateName(template),
-        'candidatesTime': template.votesTime ? times.map((time) => time.toUtc().toIso8601String()).toList() : [],
-        'confirmedTime': template.votesTime ? null : times.firstOrNull?.toUtc().toIso8601String(),
-        'candidatesPlace': template.votesPlace ? places.map(_placeJson).toList() : [],
-        'confirmedPlace': template.votesPlace ? null : (places.isEmpty ? null : _placeJson(places.first)),
-      }),
-    );
+    final http.Response response;
+    try {
+      response = await _client.post(
+        Uri.parse('$_baseUrl/api/v1/appointments'),
+        headers: {'Content-Type': 'application/json'},
+        body: jsonEncode({
+          'name': name,
+          'template': _templateName(template),
+          'candidatesTime': template.votesTime ? times.map((time) => time.toUtc().toIso8601String()).toList() : [],
+          'confirmedTime': template.votesTime ? null : times.firstOrNull?.toUtc().toIso8601String(),
+          'candidatesPlace': template.votesPlace ? places.map(_placeJson).toList() : [],
+          'confirmedPlace': template.votesPlace ? null : (places.isEmpty ? null : _placeJson(places.first)),
+        }),
+      );
+    } on http.ClientException {
+      // 개발 중 서버가 꺼져 있으면 목업처럼 이 기기에만 만든다. (load와 같은 방침)
+      return super.create(name: name, template: template, times: times, places: places, voteDeadline: voteDeadline);
+    }
     if (response.statusCode != 201) throw StateError('약속 생성에 실패했습니다. (${response.statusCode})');
+    // TODO: 백엔드에 투표 마감(voteDeadline) 필드가 생기면 요청에 넣는다. 그전까지는 화면에서만 들고 있는다.
     final appointment = _fromJson(
       (jsonDecode(response.body) as Map<String, dynamic>)['data']
           as Map<String, dynamic>,
-    );
+    ).copyWith(voteDeadline: template.hasVote ? voteDeadline : null);
     mergeServerAppointments([appointment]);
     return appointment;
   }
@@ -82,7 +90,7 @@ class ApiAppointmentRepository extends MockAppointmentRepository {
       status: _status(json['status'] as String),
       timeOptions: [
         for (final (index, value) in candidatesTime.indexed)
-          TimeOption(id: 't$index', value: DateTime.parse(value)),
+          TimeOption(id: 't$index', value: DateTime.parse(value).toLocal()),
       ],
       placeOptions: [
         for (final (index, value) in candidatesPlace.indexed)
@@ -90,7 +98,7 @@ class ApiAppointmentRepository extends MockAppointmentRepository {
       ],
       confirmedTime: json['confirmedTime'] == null
           ? null
-          : DateTime.parse(json['confirmedTime'] as String),
+          : DateTime.parse(json['confirmedTime'] as String).toLocal(),
       confirmedPlace: json['confirmedPlace'] == null
           ? null
           : _place(json['confirmedPlace'] as Map<String, dynamic>),

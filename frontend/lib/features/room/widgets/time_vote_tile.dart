@@ -13,7 +13,8 @@ class TimeVoteTile extends StatelessWidget {
   final TimeOption option;
   final List<Participant> voters;
   final bool voted;
-  final VoidCallback onTap;
+  /// null이면 투표 마감.
+  final VoidCallback? onTap;
 
   @override
   Widget build(BuildContext context) => Container(
