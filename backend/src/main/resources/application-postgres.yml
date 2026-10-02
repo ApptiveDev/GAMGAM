@@ -1,0 +1,15 @@
+spring:
+  datasource:
+    url: ${DB_URL:jdbc:postgresql://localhost:5432/gamgam}
+    username: ${DB_USERNAME:gamgam}
+    password: ${DB_PASSWORD:gamgam}
+  jpa:
+    hibernate:
+      ddl-auto: update
+    open-in-view: false
+
+app:
+  cors:
+    allowed-origins:
+      - "http://localhost:*"
+      - "http://127.0.0.1:*"
