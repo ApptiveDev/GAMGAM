@@ -12,6 +12,9 @@ abstract final class MockData {
   static const seoa = Participant(id: 'u-seoa', name: '서아');
   static const minjun = Participant(id: 'u-minjun', name: '민준', hasApp: false);
   static const harin = Participant(id: 'u-harin', name: '하린');
+  static const jiwon = Participant(id: 'u-jiwon', name: '지원');
+  static const taemin = Participant(id: 'u-taemin', name: '태민');
+  static const yuna = Participant(id: 'u-yuna', name: '유나');
 
   /// 새로 만든 방에 링크로 들어오는 친구들 (목업 연출용).
   static const friends = [doyun, seoa, minjun];
@@ -30,7 +33,7 @@ abstract final class MockData {
         hostId: me.id,
         inviteCode: 'HONGDAE',
         status: AppointmentStatus.confirmed,
-        participants: const [me, doyun, seoa, minjun, harin],
+        participants: const [me, doyun, seoa, minjun, harin, jiwon, taemin, yuna],
         confirmedTime: now.add(const Duration(hours: 1, minutes: 42)),
         confirmedPlace: const Place(name: '연남동 소금집 델리', description: '홍대입구역 3번 출구', location: GeoPoint(37.5617, 126.9221)),
         penalty: '커피 사기',

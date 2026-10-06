@@ -17,6 +17,7 @@ enum ShareLevel {
 }
 
 enum Transport {
+  bus('Bus', 'On the bus'),
   walk('걷기', '걷는 중'),
   car('자동차', '자동차'),
   subway('지하철', '지하철');
@@ -27,6 +28,13 @@ enum Transport {
 
   /// "5분 후 도착 · 걷는 중" / "이동 중 · 자동차"
   final String movingLabel;
+
+  static Transport fromSpeedKmh(double speedKmh) {
+    if (speedKmh < 7) return Transport.walk;
+    if (speedKmh < 45) return Transport.bus;
+    if (speedKmh < 90) return Transport.car;
+    return Transport.subway;
+  }
 }
 
 enum LiveStatus { arrived, moving, notDeparted, sharingOff }
@@ -68,6 +76,7 @@ class LiveParticipant {
       position != null && (status == LiveStatus.moving || (status == LiveStatus.notDeparted && shareLevel == ShareLevel.close));
 
   LiveParticipant copyWith({
+    Transport? transport,
     ShareLevel? shareLevel,
     bool? departed,
     GeoPoint? position,
@@ -77,7 +86,7 @@ class LiveParticipant {
       LiveParticipant(
         participant: participant,
         shareLevel: shareLevel ?? this.shareLevel,
-        transport: transport,
+        transport: transport ?? this.transport,
         departed: departed ?? this.departed,
         position: position ?? this.position,
         etaMinutes: etaMinutes ?? this.etaMinutes,

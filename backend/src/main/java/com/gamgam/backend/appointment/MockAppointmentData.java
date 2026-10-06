@@ -25,7 +25,7 @@ public class MockAppointmentData {
             var tomorrow = OffsetDateTime.now().plusDays(1).withHour(19).withMinute(0).withSecond(0).withNano(0);
             repository.saveAll(List.of(
                     Appointment.builder()
-                            .id("demo-hongdae")
+                            .id("a-hongdae")
                             .name("홍대 저녁 모임")
                             .template(AppointmentTemplate.BOTH)
                             .candidatesTime(List.of(tomorrow, tomorrow.plusHours(1)))
@@ -34,7 +34,7 @@ public class MockAppointmentData {
                             .status(AppointmentStatus.COORDINATING)
                             .build(),
                     Appointment.builder()
-                            .id("demo-seongsu")
+                            .id("a-seongsu")
                             .name("성수 브런치")
                             .template(AppointmentTemplate.ALL)
                             .confirmedTime(tomorrow.plusDays(2).withHour(11))
