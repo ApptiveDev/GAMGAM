@@ -26,6 +26,7 @@ public class MockAppointmentData {
             repository.saveAll(List.of(
                     Appointment.builder()
                             .id("demo-hongdae")
+                            .roomId("demo-room")
                             .name("홍대 저녁 모임")
                             .template(AppointmentTemplate.BOTH)
                             .candidatesTime(List.of(tomorrow, tomorrow.plusHours(1)))
@@ -35,6 +36,7 @@ public class MockAppointmentData {
                             .build(),
                     Appointment.builder()
                             .id("demo-seongsu")
+                            .roomId("demo-room")
                             .name("성수 브런치")
                             .template(AppointmentTemplate.ALL)
                             .confirmedTime(tomorrow.plusDays(2).withHour(11))
