@@ -13,7 +13,7 @@ import 'live_location_repository.dart';
 /// 시간은 빠르게 흘러간다: [tick]마다 [_minutesPerTick]분. (기본 0.5초 = 30초 → 1초 = 1분)
 /// 약속 42분 전에서 시작해 약 1분이면 모두 도착한다. 콕 찌르기 쿨다운만은 실제 시간으로 센다.
 class MockLiveLocationRepository extends LiveLocationRepository {
-  MockLiveLocationRepository({String? meId, this.tick = const Duration(milliseconds: 500)}) : _meId = meId ?? MockData.me.id;
+  MockLiveLocationRepository({String? meId, this.tick = const Duration(seconds: 2)}) : _meId = meId ?? MockData.me.id;
 
   final String _meId;
   final Duration tick;
@@ -26,6 +26,9 @@ class MockLiveLocationRepository extends LiveLocationRepository {
   final _sims = <String, _Sim>{};
   final _cooldowns = <String, DateTime>{};
   final _events = <String, StreamController<LiveEvent>>{};
+
+  /// API 구현체는 현재 사용자의 좌표를 기기 GPS로 대체할 수 있다.
+  bool usesDeviceLocationFor(String appointmentId) => false;
 
   @override
   ShareLevel? shareLevelOf(String appointmentId) => _levels[appointmentId];
@@ -53,6 +56,32 @@ class MockLiveLocationRepository extends LiveLocationRepository {
     final sim = _sims[appointmentId];
     sim?.timer?.cancel();
     sim?.timer = null;
+  }
+
+  void applyServerPositions(String appointmentId, Map<String, GeoPoint> positions) {
+    final sim = _sims[appointmentId];
+    if (sim == null) return;
+    sim.session = sim.session.copyWith(participants: [
+      for (final participant in sim.session.participants)
+        positions.containsKey(participant.id)
+            ? participant.copyWith(position: positions[participant.id], departed: true, shareLevel: ShareLevel.close)
+            : participant,
+    ]);
+    notifyListeners();
+  }
+
+  void setTransport(String appointmentId, String participantId, Transport transport) {
+    final sim = _sims[appointmentId];
+    if (sim == null) return;
+    sim.session = sim.session.copyWith(participants: [for (final participant in sim.session.participants) participant.id == participantId ? participant.copyWith(transport: transport) : participant]);
+    notifyListeners();
+  }
+
+  void setMeasuredLocation(String appointmentId, String participantId, GeoPoint position, Transport transport, int etaMinutes) {
+    final sim = _sims[appointmentId];
+    if (sim == null) return;
+    sim.session = sim.session.copyWith(participants: [for (final participant in sim.session.participants) participant.id == participantId ? participant.copyWith(position: position, transport: transport, departed: true, etaMinutes: etaMinutes) : participant]);
+    notifyListeners();
   }
 
   @override
@@ -161,7 +190,7 @@ class MockLiveLocationRepository extends LiveLocationRepository {
 
     final participants = [
       for (final p in sim.session.participants)
-        if (p.arrived) p else _move(p, sim.runners[p.id]!, sim.elapsed, now, sim.session.destination, events),
+        if (p.arrived || (usesDeviceLocationFor(sim.session.appointmentId) && p.id == _meId)) p else _move(p, sim.runners[p.id]!, sim.elapsed, now, sim.session.destination, events),
     ];
     sim.session = sim.session.copyWith(now: now, participants: participants);
 
@@ -267,6 +296,7 @@ class _Role {
       travelMinutes *
       switch (transport) {
         Transport.walk => 70,
+        Transport.bus => 110,
         Transport.car => 150,
         Transport.subway => 150,
       };
@@ -285,5 +315,6 @@ class _Role {
     _Role(transport: Transport.subway, travelMinutes: 43, bearing: 120, shareLevel: ShareLevel.off),
     // 그 밖의 친구 — 걸어서 9분.
     _Role(transport: Transport.walk, travelMinutes: 9, bearing: 160),
+    _Role(transport: Transport.bus, travelMinutes: 25, bearing: 270),
   ];
 }
