@@ -39,6 +39,9 @@ class _LiveMapPageState extends State<LiveMapPage> {
   Poke? _incoming;
   bool _preview = false;
 
+  /// 지도에서 누른 사람. 지도 빈 곳을 누르면 풀린다.
+  String? _selectedId;
+
   @override
   void initState() {
     super.initState();
@@ -132,8 +135,10 @@ class _LiveMapPageState extends State<LiveMapPage> {
             destination: session.destination,
             destinationPin: const DestinationPin(),
             bottomInset: sheetHeight,
+            onPinTap: (id) => setState(() => _selectedId = id),
+            onMapTap: () => setState(() => _selectedId = null),
             pins: [
-              for (final p in visible) MapPin(id: p.id, position: p.position!, child: ParticipantMarker(person: p, isMe: p.id == me)),
+              for (final p in visible) MapPin(id: p.id, position: p.position!, child: ParticipantMarker(person: p, selected: p.id == _selectedId)),
             ],
           ),
         ),

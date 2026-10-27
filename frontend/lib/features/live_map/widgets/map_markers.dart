@@ -1,75 +1,69 @@
+import 'dart:math' as math;
+
 import 'package:flutter/material.dart';
+import 'package:flutter_svg/flutter_svg.dart';
 
 import '../../../core/theme/app_colors.dart';
 import '../../../data/models/live_location.dart';
-import 'live_text.dart';
+import 'live_style.dart';
 
-/// 지도 위 참여자: 프로필 원 + 이동수단 배지 + ETA.
+/// 지도 위 참여자: 프로필 원 + "이름 · N분" 라벨. 손으로 붙인 스티커처럼 사람마다 살짝 기울인다.
+/// 탭은 [LiveMapView.onPinTap]에서 받는다.
 class ParticipantMarker extends StatelessWidget {
-  const ParticipantMarker({super.key, required this.person, this.isMe = false});
+  const ParticipantMarker({super.key, required this.person, this.selected = false});
 
   final LiveParticipant person;
-  final bool isMe;
+  final bool selected;
 
   @override
   Widget build(BuildContext context) {
-    final ring = isMe ? AppColors.textBody : AppColors.textSub;
-    return Column(mainAxisSize: MainAxisSize.min, children: [
-      SizedBox.square(
-        dimension: 52,
-        child: Stack(clipBehavior: Clip.none, children: [
-          Container(
-            width: 46,
-            height: 46,
-            alignment: Alignment.center,
-            decoration: BoxDecoration(
-              color: Colors.white,
-              shape: BoxShape.circle,
-              border: Border.all(color: ring, width: 2.5),
-              boxShadow: const [BoxShadow(color: Color(0x1F000000), blurRadius: 6, offset: Offset(0, 2))],
+    final eta = person.status == LiveStatus.notDeparted ? '집 · ${person.etaMinutes}분' : '${person.etaMinutes}분';
+    return Center(
+      child: Transform.rotate(
+        angle: _tilt(person.id),
+        child: SizedBox(
+          width: 56,
+          height: 68,
+          child: Stack(clipBehavior: Clip.none, children: [
+            LiveAvatar(person.participant, size: 56, borderWidth: 2, selected: selected),
+            Positioned(
+              left: -3,
+              top: 52,
+              child: Container(
+                padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 3),
+                decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(4), boxShadow: liveShadow),
+                child: Row(mainAxisSize: MainAxisSize.min, children: [
+                  Text(person.participant.name, style: liveText(10, FontWeight.w600, LiveColors.textStrong)),
+                  const SizedBox(width: 3),
+                  Text('·', style: liveText(11, FontWeight.w700, LiveColors.textHint)),
+                  const SizedBox(width: 3),
+                  Text(eta, style: liveText(10, FontWeight.w400, LiveColors.textBody)),
+                ]),
+              ),
             ),
-            child: Text(person.participant.initial, style: TextStyle(fontSize: 15, fontWeight: FontWeight.w600, color: ring)),
-          ),
-          Positioned(
-            right: 0,
-            bottom: 0,
-            child: Container(
-              width: 22,
-              height: 22,
-              decoration: BoxDecoration(color: ring, shape: BoxShape.circle, border: Border.all(color: Colors.white, width: 1.5)),
-              child: Icon(LiveText.transportIcon(person.transport), size: 13, color: Colors.white),
-            ),
-          ),
-        ]),
-      ),
-      const SizedBox(height: 4),
-      Container(
-        padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 3),
-        decoration: BoxDecoration(
-          color: Colors.white,
-          borderRadius: BorderRadius.circular(6),
-          boxShadow: const [BoxShadow(color: Color(0x1A000000), blurRadius: 3, offset: Offset(0, 1))],
-        ),
-        child: Text(
-          person.status == LiveStatus.notDeparted ? '집 · ${person.etaMinutes}분' : '${person.etaMinutes}분',
-          style: const TextStyle(fontSize: 11, fontWeight: FontWeight.w500, color: AppColors.textBody),
+          ]),
         ),
       ),
-    ]);
+    );
+  }
+
+  /// 사람마다 고정된 -5° ~ +9° 기울기. 앱을 다시 켜도 바뀌지 않게 id 글자로 정한다.
+  static double _tilt(String id) {
+    final degrees = -5 + id.codeUnits.fold(0, (a, b) => a + b) % 15;
+    return degrees * math.pi / 180;
   }
 }
 
-/// 목적지 핀: "목적지" 라벨 + 물방울 핀.
+/// 목적지 핀: 검은 물방울 + 흰 깃발. 핀 끝이 상자 아래 가운데에 오도록 그림자 여백만큼 내린다.
 class DestinationPin extends StatelessWidget {
   const DestinationPin({super.key});
 
   @override
-  Widget build(BuildContext context) => Column(mainAxisSize: MainAxisSize.min, children: [
-        Container(
-          padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 4),
-          decoration: BoxDecoration(color: AppColors.point, borderRadius: BorderRadius.circular(999)),
-          child: const Text('목적지', style: TextStyle(fontSize: 11, fontWeight: FontWeight.w600, color: Colors.white)),
+  Widget build(BuildContext context) => Semantics(
+        label: '목적지',
+        child: Transform.translate(
+          offset: const Offset(0, 8),
+          child: Center(child: SvgPicture.asset('assets/icons/live_map/destination_pin.svg', width: 42.66, height: 45.8)),
         ),
-        const Icon(Icons.location_on, size: 44, color: AppColors.point),
-      ]);
+      );
 }
