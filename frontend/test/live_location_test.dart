@@ -4,6 +4,7 @@ import 'package:gamgam/app.dart';
 import 'package:gamgam/data/models/live_location.dart';
 import 'package:gamgam/data/repositories/mock_appointment_repository.dart';
 import 'package:gamgam/data/repositories/mock_live_location_repository.dart';
+import 'package:gamgam/features/live_map/widgets/person_card.dart';
 
 /// 테스트는 "1초 = 1분" 기준으로 시간을 흘린다. (목업 기본값은 2초 = 1분)
 const _tick = Duration(milliseconds: 500);
@@ -97,6 +98,50 @@ void main() {
     await tester.tap(find.text('지도에서 보기'));
     await tester.pumpAndSettle();
     expect(find.text('이 방에서 내 위치를\n어디까지 보여줄까요?'), findsOneWidget);
+  });
+
+  /// 공유 범위를 고른 채로 당일 지도를 바로 연다. 시간은 흐르지 않게 멈춰 둔다.
+  Future<MockLiveLocationRepository> openFrozenMap(WidgetTester tester) async {
+    final repo = MockAppointmentRepository();
+    final live = MockLiveLocationRepository(meId: repo.me.id, tick: const Duration(hours: 1));
+    addTearDown(live.dispose);
+    await live.setShareLevel('a-hongdae', ShareLevel.close);
+    await tester.pumpWidget(GamgamApp(repository: repo, liveRepository: live, initialLocation: '/appointments/a-hongdae/live'));
+    await advance(tester);
+    return live;
+  }
+
+  testWidgets('지도에서 마커를 누르면 그 사람 카드가 뜨고, 빈 곳을 누르면 닫힌다', (tester) async {
+    await openFrozenMap(tester);
+    expect(find.byType(PersonCard), findsNothing);
+
+    // 지도가 Stack 맨 아래라 첫 번째 '도윤'이 마커 라벨이다.
+    await tester.tap(find.text('도윤').first);
+    await advance(tester);
+    expect(find.descendant(of: find.byType(PersonCard), matching: find.text('도윤')), findsOneWidget);
+    // 상태 메시지는 카드와 프로필 줄 말풍선 두 곳에 보인다.
+    expect(find.text('오는 길에 음료 사줄사람 사례해드림'), findsNWidgets(2));
+
+    await tester.tapAt(const Offset(30, 420));
+    await advance(tester);
+    expect(find.byType(PersonCard), findsNothing);
+    expect(find.text('오는 길에 음료 사줄사람 사례해드림'), findsOneWidget);
+  });
+
+  testWidgets('시트를 끝까지 올리면 전체 화면이 되고, ←를 누르면 지도로 돌아온다', (tester) async {
+    await openFrozenMap(tester);
+    expect(find.byTooltip('지도 보기'), findsNothing);
+
+    await tester.fling(find.text('약속까지'), const Offset(0, -2000), 3000);
+    await advance(tester, seconds: 2);
+    expect(find.byTooltip('지도 보기'), findsOneWidget);
+    expect(find.byTooltip('닫기').hitTestable(), findsNothing);
+
+    await tester.tap(find.byTooltip('지도 보기'));
+    await advance(tester);
+    expect(find.byTooltip('지도 보기'), findsNothing);
+    expect(find.byTooltip('닫기').hitTestable(), findsOneWidget);
+    expect(find.text('약속까지').hitTestable(), findsOneWidget);
   });
 
   test('이미 도착한 사람에게는 콕 찌르기가 가지 않는다', () async {
