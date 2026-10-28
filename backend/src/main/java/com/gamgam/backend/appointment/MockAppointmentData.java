@@ -13,6 +13,7 @@ import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 
 @Configuration
+@org.springframework.context.annotation.Profile("legacy-mock")
 public class MockAppointmentData {
 
     @Bean
@@ -26,6 +27,8 @@ public class MockAppointmentData {
             repository.saveAll(List.of(
                     Appointment.builder()
                             .id("a-hongdae")
+                            .hostId("u-yeeun")
+                            .inviteCode("HONGDAE")
                             .name("홍대 저녁 모임")
                             .template(AppointmentTemplate.BOTH)
                             .candidatesTime(List.of(tomorrow, tomorrow.plusHours(1)))
@@ -35,6 +38,8 @@ public class MockAppointmentData {
                             .build(),
                     Appointment.builder()
                             .id("a-seongsu")
+                            .hostId("u-seoa")
+                            .inviteCode("SEONGSU")
                             .name("성수 브런치")
                             .template(AppointmentTemplate.ALL)
                             .confirmedTime(tomorrow.plusDays(2).withHour(11))

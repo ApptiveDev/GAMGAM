@@ -4,6 +4,7 @@ import com.gamgam.backend.auth.dto.LoginRequest;
 import com.gamgam.backend.auth.dto.LoginResponse;
 import com.gamgam.backend.auth.dto.SignupRequest;
 import com.gamgam.backend.auth.dto.UserResponse;
+import com.gamgam.backend.auth.dto.UpdateProfileRequest;
 import com.gamgam.backend.auth.security.JwtTokenProvider;
 import com.gamgam.backend.auth.security.PasswordHasher;
 import com.gamgam.backend.global.exception.BusinessException;
@@ -55,6 +56,22 @@ public class AuthService {
 
         JwtTokenProvider.AccessToken token = jwtTokenProvider.create(user);
         return LoginResponse.bearer(token.value(), token.expiresInSeconds(), UserResponse.from(user));
+    }
+
+    public UserResponse me(String userId) {
+        return UserResponse.from(findUser(userId));
+    }
+
+    @Transactional
+    public UserResponse updateProfile(String userId, UpdateProfileRequest request) {
+        User user = findUser(userId);
+        user.updateName(request.name().trim());
+        return UserResponse.from(user);
+    }
+
+    private User findUser(String userId) {
+        return userRepository.findById(userId)
+                .orElseThrow(() -> new BusinessException(ErrorCode.USER_NOT_FOUND));
     }
 
     private static String normalizeEmail(String email) {

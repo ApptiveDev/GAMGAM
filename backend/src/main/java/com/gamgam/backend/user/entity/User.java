@@ -44,4 +44,8 @@ public class User {
         this.name = name;
         this.passwordHash = passwordHash;
     }
+
+    public void updateName(String name) {
+        this.name = name;
+    }
 }

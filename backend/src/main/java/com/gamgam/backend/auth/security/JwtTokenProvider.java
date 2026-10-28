@@ -3,6 +3,8 @@ package com.gamgam.backend.auth.security;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.gamgam.backend.user.entity.User;
+import com.gamgam.backend.global.exception.BusinessException;
+import com.gamgam.backend.global.exception.ErrorCode;
 import java.nio.charset.StandardCharsets;
 import java.time.Instant;
 import java.util.Base64;
@@ -42,6 +44,41 @@ public class JwtTokenProvider {
         } catch (JsonProcessingException exception) {
             throw new IllegalStateException("Could not create access token.", exception);
         }
+    }
+
+    public String verifyAndGetUserId(String token) {
+        try {
+            String[] parts = token.split("\\.", -1);
+            if (parts.length != 3 || !HEADER.equals(parts[0])) {
+                throw invalidToken();
+            }
+            String unsignedToken = parts[0] + "." + parts[1];
+            byte[] expected = Base64.getUrlDecoder().decode(sign(unsignedToken));
+            byte[] actual = Base64.getUrlDecoder().decode(parts[2]);
+            if (!java.security.MessageDigest.isEqual(expected, actual)) {
+                throw invalidToken();
+            }
+
+            @SuppressWarnings("unchecked")
+            Map<String, Object> claims = objectMapper.readValue(
+                    Base64.getUrlDecoder().decode(parts[1]), Map.class);
+            Object subject = claims.get("sub");
+            Object expiration = claims.get("exp");
+            if (!(subject instanceof String userId) || userId.isBlank()
+                    || !(expiration instanceof Number exp)
+                    || Instant.now().getEpochSecond() >= exp.longValue()) {
+                throw invalidToken();
+            }
+            return userId;
+        } catch (BusinessException exception) {
+            throw exception;
+        } catch (Exception exception) {
+            throw invalidToken();
+        }
+    }
+
+    private static BusinessException invalidToken() {
+        return new BusinessException(ErrorCode.INVALID_TOKEN);
     }
 
     private String sign(String value) {

@@ -33,6 +33,12 @@ public class Appointment {
     @Column(nullable = false, length = 50)
     private String name;
 
+    @Column(name = "host_id", nullable = false, length = 36)
+    private String hostId;
+
+    @Column(name = "invite_code", nullable = false, unique = true, length = 12)
+    private String inviteCode;
+
     @Enumerated(EnumType.STRING)
     @Column(nullable = false, length = 20)
     private AppointmentTemplate template; // 약속 조율 템플릿(시간만 조율, 장소만 조율 등)
@@ -72,7 +78,7 @@ public class Appointment {
     private Instant createdAt;
 
     @Builder
-    public Appointment(String id, String name, AppointmentTemplate template,
+    public Appointment(String id, String name, String hostId, String inviteCode, AppointmentTemplate template,
                        List<OffsetDateTime> candidatesTime, OffsetDateTime confirmedTime,
                        List<Place> candidatesPlace, Place confirmedPlace,
                        PenaltyRule penalty, RewardRule reward,
@@ -80,6 +86,8 @@ public class Appointment {
                        AppointmentStatus status) {
         this.id = id;
         this.name = name;
+        this.hostId = hostId;
+        this.inviteCode = inviteCode;
         this.template = template;
         this.candidatesTime = candidatesTime != null ? candidatesTime : new ArrayList<>();
         this.confirmedTime = confirmedTime;
@@ -89,5 +97,27 @@ public class Appointment {
         this.reward = reward;
         this.locationSharing = locationSharing;
         this.status = status;
+    }
+
+    public void confirm(Integer timeOptionIndex, Integer placeOptionIndex) {
+        if (template.coordinatesTime()) {
+            this.confirmedTime = candidatesTime.get(timeOptionIndex);
+        }
+        if (template.coordinatesPlace()) {
+            this.confirmedPlace = candidatesPlace.get(placeOptionIndex);
+        }
+        this.status = AppointmentStatus.CONFIRMED;
+    }
+
+    public void addCandidateTime(OffsetDateTime time) {
+        this.candidatesTime.add(time);
+    }
+
+    public void updatePenalty(PenaltyRule penalty) {
+        this.penalty = penalty;
+    }
+
+    public void complete() {
+        this.status = AppointmentStatus.COMPLETED;
     }
 }
