@@ -1,9 +1,11 @@
 package com.gamgam.backend.api.v1;
 
 import com.gamgam.backend.appointment.dto.AppointmentVotingResponse;
+import com.gamgam.backend.appointment.dto.VoteRequest;
 import com.gamgam.backend.appointment.service.AppointmentVotingService;
 import com.gamgam.backend.global.auth.CurrentUserProvider;
 import com.gamgam.backend.global.response.ApiResponse;
+import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.web.bind.annotation.*;
 
@@ -17,5 +19,15 @@ public class AppointmentVotingController {
     @GetMapping("/votes")
     public ApiResponse<AppointmentVotingResponse> get(@PathVariable String id) {
         return ApiResponse.ok(service.get(id, currentUser.userId()));
+    }
+
+    @PutMapping("/votes/time")
+    public ApiResponse<AppointmentVotingResponse> time(@PathVariable String id, @Valid @RequestBody VoteRequest request) {
+        return ApiResponse.ok(service.voteTime(id, currentUser.userId(), request.optionIndexes()));
+    }
+
+    @PutMapping("/votes/place")
+    public ApiResponse<AppointmentVotingResponse> place(@PathVariable String id, @Valid @RequestBody VoteRequest request) {
+        return ApiResponse.ok(service.votePlace(id, currentUser.userId(), request.optionIndexes()));
     }
 }
