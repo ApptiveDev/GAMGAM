@@ -18,6 +18,7 @@ import 'widgets/live_text.dart';
 import 'widgets/map_header.dart';
 import 'widgets/map_markers.dart';
 import 'widgets/participant_sheet.dart';
+import 'widgets/person_card.dart';
 import 'widgets/poke_banner.dart';
 import 'widgets/poke_sheet.dart';
 
@@ -41,6 +42,7 @@ class _LiveMapPageState extends State<LiveMapPage> {
 
   /// 지도에서 누른 사람. 지도 빈 곳을 누르면 풀린다.
   String? _selectedId;
+  final _camera = LiveMapCamera();
 
   @override
   void initState() {
@@ -127,6 +129,8 @@ class _LiveMapPageState extends State<LiveMapPage> {
     final me = appointments.me.id;
     final sheetHeight = MediaQuery.sizeOf(context).height * ParticipantSheet.initialSize;
     final visible = session.participants.where((p) => p.visibleOnMap).toList();
+    final selected = _selectedId == null ? null : session.byId(_selectedId!);
+    final ranks = {for (final (i, p) in session.arrivalOrder.indexed) p.id: i + 1};
 
     return Scaffold(
       body: Stack(children: [
@@ -135,6 +139,7 @@ class _LiveMapPageState extends State<LiveMapPage> {
             destination: session.destination,
             destinationPin: const DestinationPin(),
             bottomInset: sheetHeight,
+            camera: _camera,
             onPinTap: (id) => setState(() => _selectedId = id),
             onMapTap: () => setState(() => _selectedId = null),
             pins: [
@@ -144,10 +149,22 @@ class _LiveMapPageState extends State<LiveMapPage> {
         ),
         SafeArea(
           child: MapHeader(
-            appointment: a,
-            session: session,
-            meId: me,
-            onBack: () => context.canPop() ? context.pop() : context.go(AppRoutes.room(a.id)),
+            onClose: () => context.canPop() ? context.pop() : context.go(AppRoutes.room(a.id)),
+            moreMenu: {'위치 공유 설정': () => context.push(AppRoutes.locationSetting(a.id))},
+            onMyLocation: () {
+              final position = session.byId(me)?.position;
+              position == null ? _toast('아직 내 위치를 알 수 없어요') : _camera.focus(position);
+            },
+            onDestination: () => _camera.focus(session.destination),
+            card: selected == null
+                ? null
+                : PersonCard(
+                    person: selected,
+                    isMe: selected.id == me,
+                    rank: ranks[selected.id],
+                    cooldown: live.pokeCooldownOf(a.id, selected.id),
+                    onPoke: () => _poke(selected),
+                  ),
           ),
         ),
         ParticipantSheet(

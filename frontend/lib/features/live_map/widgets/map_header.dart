@@ -1,118 +1,107 @@
 import 'package:flutter/material.dart';
 
 import '../../../core/theme/app_colors.dart';
-import '../../../core/widgets/avatar.dart';
-import '../../../core/widgets/dashed_border.dart';
-import '../../../data/models/appointment.dart';
-import '../../../data/models/live_location.dart';
-import 'live_text.dart';
+import 'live_style.dart';
 
-/// 지도 위 상단 오버레이: 약속 카드 + 남은 시간 + 지도 밖에 있는 사람 칩.
+/// 지도 위 상단 오버레이: 왼쪽 닫기, 오른쪽 더보기와 [내 위치 · 목적지] 버튼.
+/// 마커를 누르면 그 사람 카드([card])가 더보기 아래에 뜬다.
 class MapHeader extends StatelessWidget {
-  const MapHeader({super.key, required this.appointment, required this.session, required this.meId, required this.onBack});
+  const MapHeader({
+    super.key,
+    required this.onClose,
+    required this.moreMenu,
+    required this.onMyLocation,
+    required this.onDestination,
+    this.card,
+  });
 
-  final Appointment appointment;
-  final LiveSession session;
-  final String meId;
-  final VoidCallback onBack;
+  final VoidCallback onClose;
+
+  /// 더보기 버튼을 눌렀을 때 고를 항목. 고르면 그 항목의 콜백을 부른다.
+  final Map<String, VoidCallback> moreMenu;
+  final VoidCallback onMyLocation;
+  final VoidCallback onDestination;
+  final Widget? card;
 
   @override
-  Widget build(BuildContext context) {
-    // 출발 전(집 위치 비공개)·공유 꺼짐은 지도에 없으니 칩으로 담백하게 알려준다.
-    final offMap = session.participants.where((p) => p.id != meId && !p.arrived && !p.visibleOnMap).toList();
-
-    return Padding(
-      padding: const EdgeInsets.fromLTRB(16, 8, 16, 0),
-      child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-        Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
-          _Floating(
-            radius: 22,
-            child: IconButton(onPressed: onBack, icon: const Icon(Icons.chevron_left, color: AppColors.textSub), tooltip: '뒤로'),
-          ),
-          const SizedBox(width: 8),
-          Expanded(
-            child: _Floating(
-              padding: const EdgeInsets.symmetric(horizontal: 13, vertical: 10),
-              child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                Text(appointment.name,
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                    style: const TextStyle(fontSize: 15, fontWeight: FontWeight.w600, color: AppColors.textTitle)),
-                const SizedBox(height: 2),
-                Text(appointment.place?.name ?? '',
-                    maxLines: 1, overflow: TextOverflow.ellipsis, style: const TextStyle(fontSize: 12, color: AppColors.textSub)),
-              ]),
+  Widget build(BuildContext context) => Padding(
+        padding: const EdgeInsets.fromLTRB(20, 8, 20, 0),
+        child: Column(crossAxisAlignment: CrossAxisAlignment.end, children: [
+          Row(children: [
+            _RoundButton(icon: 'close', iconSize: 21, padding: 10.5, tooltip: '닫기', onTap: onClose),
+            const Spacer(),
+            PopupMenuButton<VoidCallback>(
+              tooltip: '더보기',
+              position: PopupMenuPosition.under,
+              color: Colors.white,
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+              onSelected: (action) => action(),
+              itemBuilder: (_) => [
+                for (final e in moreMenu.entries)
+                  PopupMenuItem(value: e.value, child: Text(e.key, style: liveText(14, FontWeight.w500, LiveColors.textStrong))),
+              ],
+              child: const _RoundButton(icon: 'more', iconSize: 20, padding: 10),
             ),
-          ),
-          const SizedBox(width: 10),
-          _Floating(
-            color: AppColors.point,
-            padding: const EdgeInsets.symmetric(horizontal: 13, vertical: 10),
-            child: Column(crossAxisAlignment: CrossAxisAlignment.end, children: [
-              Text(LiveText.remaining(session.remaining),
-                  style:
-                      const TextStyle(fontSize: 18, fontWeight: FontWeight.w700, color: Colors.white, height: 1, fontFeatures: [FontFeature.tabularFigures()])),
-              const SizedBox(height: 4),
-              Text(session.remaining.isNegative ? '약속 시간' : '약속까지', style: const TextStyle(fontSize: 11, color: Colors.white)),
+          ]),
+          if (card != null) ...[const SizedBox(height: 18), card!],
+          SizedBox(height: card == null ? 32 : 18),
+          Container(
+            width: 40,
+            decoration: _floating(radius: 32),
+            child: Column(children: [
+              _IconTap(icon: 'my_location', tooltip: '내 위치', onTap: onMyLocation),
+              _IconTap(icon: 'destination', tooltip: '목적지', onTap: onDestination),
             ]),
           ),
         ]),
-        if (offMap.isNotEmpty) ...[
-          const SizedBox(height: 10),
-          Wrap(spacing: 8, runSpacing: 8, children: [for (final p in offMap) _OffMapChip(person: p)]),
-        ],
-      ]),
-    );
-  }
+      );
 }
 
-class _OffMapChip extends StatelessWidget {
-  const _OffMapChip({required this.person});
+/// 지도 위에 떠 있는 흰 요소.
+BoxDecoration _floating({required double radius}) => BoxDecoration(
+      color: Colors.white,
+      borderRadius: BorderRadius.circular(radius),
+      border: Border.all(color: LiveColors.border),
+      boxShadow: liveShadow,
+    );
 
-  final LiveParticipant person;
+class _RoundButton extends StatelessWidget {
+  const _RoundButton({required this.icon, required this.iconSize, required this.padding, this.tooltip, this.onTap});
+
+  final String icon;
+  final double iconSize;
+  final double padding;
+  final String? tooltip;
+
+  /// 없으면 바깥(PopupMenuButton 등)이 탭을 받는다.
+  final VoidCallback? onTap;
 
   @override
   Widget build(BuildContext context) {
-    final off = person.status == LiveStatus.sharingOff;
-    final name = person.participant.name;
-    final content = Padding(
-      padding: const EdgeInsets.fromLTRB(6, 5, 11, 5),
-      child: Row(mainAxisSize: MainAxisSize.min, children: [
-        Avatar(person.participant, size: 20, dashed: off),
-        const SizedBox(width: 6),
-        Text(
-          off ? '$name 위치 공유 꺼짐' : '$name 집에 있음 · ${person.etaMinutes}분',
-          style: TextStyle(fontSize: 12, color: off ? AppColors.textSub : AppColors.textBody),
-        ),
-      ]),
+    final circle = Container(
+      padding: EdgeInsets.all(padding),
+      decoration: _floating(radius: 999),
+      child: LiveIcon(icon, size: iconSize),
     );
-    if (off) {
-      return DashedBorder(
-        radius: 999,
-        child: ClipRRect(borderRadius: BorderRadius.circular(999), child: ColoredBox(color: Colors.white.withValues(alpha: 0.9), child: content)),
-      );
-    }
-    return _Floating(radius: 999, child: content);
+    if (onTap == null) return circle;
+    return Tooltip(message: tooltip ?? '', child: GestureDetector(onTap: onTap, child: circle));
   }
 }
 
-/// 지도 위에 떠 있는 흰 카드.
-class _Floating extends StatelessWidget {
-  const _Floating({required this.child, this.color = Colors.white, this.radius = 14, this.padding = EdgeInsets.zero});
+class _IconTap extends StatelessWidget {
+  const _IconTap({required this.icon, required this.tooltip, required this.onTap});
 
-  final Widget child;
-  final Color color;
-  final double radius;
-  final EdgeInsets padding;
+  final String icon;
+  final String tooltip;
+  final VoidCallback onTap;
 
   @override
-  Widget build(BuildContext context) => Container(
-        padding: padding,
-        decoration: BoxDecoration(
-          color: color,
-          borderRadius: BorderRadius.circular(radius),
-          boxShadow: const [BoxShadow(color: Color(0x14000000), blurRadius: 8, offset: Offset(0, 2))],
+  Widget build(BuildContext context) => Tooltip(
+        message: tooltip,
+        child: InkWell(
+          onTap: onTap,
+          customBorder: const CircleBorder(),
+          child: Padding(padding: const EdgeInsets.all(11.5), child: LiveIcon(icon, size: 17)),
         ),
-        child: child,
       );
 }
