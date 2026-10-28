@@ -1,6 +1,7 @@
 package com.gamgam.backend.api.v1;
 
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
@@ -36,7 +37,7 @@ class AppointmentControllerTests {
     @BeforeEach
     void setUp() {
         service = mock(AppointmentService.class);
-        mvc = MockMvcBuilders.standaloneSetup(new AppointmentController(service))
+        mvc = MockMvcBuilders.standaloneSetup(new AppointmentController(service, () -> "u-yeeun"))
                 .setControllerAdvice(new GlobalExceptionHandler()).build();
     }
 
@@ -45,7 +46,7 @@ class AppointmentControllerTests {
     }
 
     private static AppointmentResponse sampleResponse() {
-        return new AppointmentResponse("id-1", "홍대 저녁 모임", AppointmentTemplate.ALL,
+        return new AppointmentResponse("id-1", "demo-room", "홍대 저녁 모임", AppointmentTemplate.ALL,
                 List.of(), OffsetDateTime.parse("2030-01-01T19:00:00+09:00"), List.of(), null,
                 null, null, LocationSharingPolicy.defaults(), AppointmentStatus.CONFIRMED,
                 "http://localhost:3000/appointments/id-1", Instant.parse("2030-01-01T00:00:00Z"));
@@ -64,9 +65,9 @@ class AppointmentControllerTests {
 
     @Test
     void 약속을_만들면_201과_응답을_돌려준다() throws Exception {
-        when(service.create(any(CreateAppointmentRequest.class))).thenReturn(sampleResponse());
+        when(service.create(eq("demo-room"), eq("u-yeeun"), any(CreateAppointmentRequest.class))).thenReturn(sampleResponse());
 
-        mvc.perform(post("/api/v1/appointments").contentType(MediaType.APPLICATION_JSON).content(validAllBody()))
+        mvc.perform(post("/api/v1/rooms/demo-room/appointments").contentType(MediaType.APPLICATION_JSON).content(validAllBody()))
                 .andExpect(status().isCreated())
                 .andExpect(jsonPath("$.success").value(true))
                 .andExpect(jsonPath("$.data.id").value("id-1"))
@@ -81,13 +82,13 @@ class AppointmentControllerTests {
                  "confirmedPlace": {"name": "연남동"}}
                 """.formatted(futureIso(3));
 
-        mvc.perform(post("/api/v1/appointments").contentType(MediaType.APPLICATION_JSON).content(body))
+        mvc.perform(post("/api/v1/rooms/demo-room/appointments").contentType(MediaType.APPLICATION_JSON).content(body))
                 .andExpect(status().isBadRequest())
                 .andExpect(jsonPath("$.success").value(false))
                 .andExpect(jsonPath("$.code").value("VALIDATION_ERROR"))
                 .andExpect(jsonPath("$.fieldErrors.name").exists());
 
-        verify(service, never()).create(any());
+        verify(service, never()).create(any(), any(), any());
     }
 
     @Test
@@ -98,7 +99,7 @@ class AppointmentControllerTests {
                  "confirmedPlace": {"name": "연남동"}}
                 """;
 
-        mvc.perform(post("/api/v1/appointments").contentType(MediaType.APPLICATION_JSON).content(body))
+        mvc.perform(post("/api/v1/rooms/demo-room/appointments").contentType(MediaType.APPLICATION_JSON).content(body))
                 .andExpect(status().isBadRequest())
                 .andExpect(jsonPath("$.code").value("VALIDATION_ERROR"))
                 .andExpect(jsonPath("$.fieldErrors.candidatesTimeConsistent").exists());
@@ -106,7 +107,7 @@ class AppointmentControllerTests {
 
     @Test
     void 약속을_조회한다() throws Exception {
-        when(service.get("id-1")).thenReturn(sampleResponse());
+        when(service.get("id-1", "u-yeeun")).thenReturn(sampleResponse());
 
         mvc.perform(get("/api/v1/appointments/{id}", "id-1"))
                 .andExpect(status().isOk())
@@ -116,7 +117,7 @@ class AppointmentControllerTests {
 
     @Test
     void 없는_약속은_404다() throws Exception {
-        when(service.get("missing")).thenThrow(new BusinessException(ErrorCode.APPOINTMENT_NOT_FOUND));
+        when(service.get("missing", "u-yeeun")).thenThrow(new BusinessException(ErrorCode.APPOINTMENT_NOT_FOUND));
 
         mvc.perform(get("/api/v1/appointments/{id}", "missing"))
                 .andExpect(status().isNotFound())

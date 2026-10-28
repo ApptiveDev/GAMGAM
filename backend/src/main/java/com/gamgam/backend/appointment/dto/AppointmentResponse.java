@@ -15,6 +15,7 @@ import java.util.List;
 
 public record AppointmentResponse(
         String id,
+        String roomId,
         String name,
         AppointmentTemplate template,
         List<OffsetDateTime> candidatesTime,
@@ -31,6 +32,7 @@ public record AppointmentResponse(
     public static AppointmentResponse of(Appointment appointment, String shareUrl) {
         return new AppointmentResponse(
                 appointment.getId(),
+                appointment.getRoomId(),
                 appointment.getName(),
                 appointment.getTemplate(),
                 // 시간 필드(candidatesTime, confirmedTime)는 DB엔 UTC로 저장돼 있고, 이 응답 DTO로 변환되는 시점에 KST(+09:00)로 바뀐다.

@@ -39,9 +39,9 @@ Windows PowerShell에서 다음을 실행합니다.
 
 ### 약속 생성
 
-`POST /api/v1/appointments`
+`POST /api/v1/rooms/{roomId}/appointments`
 
-약속 이름과 템플릿, 시간·장소 정보를 전달하면 약속을 생성하고 공유 링크를 함께 반환합니다.
+방 멤버가 방 ID와 약속 이름, 템플릿, 시간·장소 정보를 전달하면 해당 방에 약속을 생성하고 공유 링크를 함께 반환합니다.
 생성 성공 시 HTTP 201을 반환합니다. 로그인·참여자 연동 전이라 약속 생성자는 저장하지 않습니다.
 
 | 필드 | 필수 | 규칙 |
@@ -101,11 +101,13 @@ Windows PowerShell에서 다음을 실행합니다.
 
 `GET /api/v1/appointments/{id}`
 
-생성 응답의 `id`로 약속 하나를 조회합니다. 응답 형식은 생성 응답과 같습니다.
+생성 응답의 `id`로 약속 하나를 조회합니다. 해당 방의 멤버만 조회할 수 있으며 응답 형식은 생성 응답과 같습니다.
+
+`GET /api/v1/rooms/{roomId}/appointments`로 해당 방의 약속 목록을 생성 시각 역순으로 조회합니다. 방 멤버만 사용할 수 있습니다.
 
 ### 응답
 
-성공 응답의 `data`에는 `id`, `name`, `template`, `candidatesTime`, `confirmedTime`, `candidatesPlace`,
+성공 응답의 `data`에는 `id`, `roomId`, `name`, `template`, `candidatesTime`, `confirmedTime`, `candidatesPlace`,
 `confirmedPlace`, `penalty`, `reward`, `locationSharing`, `status`, `shareUrl`, `createdAt`이 포함됩니다.
 
 - `id`는 UUID 문자열입니다.
@@ -132,13 +134,29 @@ $body = @'
 }
 '@
 
-$created = Invoke-RestMethod -Method Post -Uri 'http://localhost:8080/api/v1/appointments' `
+$created = Invoke-RestMethod -Method Post -Uri 'http://localhost:8080/api/v1/rooms/demo-room/appointments' `
   -ContentType 'application/json; charset=utf-8' `
   -Body ([System.Text.Encoding]::UTF8.GetBytes($body))
 $created | ConvertTo-Json -Depth 5
 
 Invoke-RestMethod -Uri "http://localhost:8080/api/v1/appointments/$($created.data.id)" | ConvertTo-Json -Depth 5
 ```
+
+### 방 담당자와의 연결 범위
+
+실제 방 생성, 초대 링크 발급/검증, 방 가입은 아직 구현하지 않았습니다. 지도용 `MockRoomRepository`를 실제 방 멤버십으로 사용하지 않습니다.
+방 담당자는 `room/RoomAccess.requireMember(roomId, userId)`를 실제 방 조회로 구현하면 됩니다.
+없는 방은 `ROOM_NOT_FOUND`, 비멤버는 `ROOM_ACCESS_DENIED`로 거부하는 계약입니다.
+운영용 `UnavailableRoomAccess`를 실제 구현으로 교체해야 하며, 연결 전에는 HTTP 503 `ROOM_INTEGRATION_UNAVAILABLE`을 반환합니다.
+
+로컬 프로필에서는 `LocalRoomAccess`가 **`demo-room` 하나만** 제공합니다. 멤버는 `u-yeeun`, `u-doyun`, `u-seoa`, `u-minjun`, `u-harin`입니다.
+시드 약속 `demo-hongdae`(투표 가능), `demo-seongsu`(이미 확정)는 이 방에 연결됩니다.
+사용자는 로컬에서만 `X-User-Id` 헤더로 선택할 수 있으며 생략 시 `u-yeeun`입니다.
+운영에서는 이 헤더를 사용하지 않고 인증된 요청의 `Principal.getName()`을 사용자 ID로 사용합니다. 로그인 담당자의 사용자 ID 규격과 연결해야 합니다.
+
+모든 약속은 방에 속하며 `roomId`는 필수입니다. 기존 `AppointmentController`와 `AppointmentService`에서 방별 생성·조회를 처리합니다.
+방 없이 생성하거나 전체 방의 약속을 조회하던 `POST /api/v1/appointments`, `GET /api/v1/appointments`는 제거했습니다.
+프런트엔드의 생성·목록 요청도 방 ID를 포함하는 경로로 연결해야 합니다. 방 생성·가입 API는 별도 담당 범위입니다.
 
 ## 같은 방 참여자 지도 API
 

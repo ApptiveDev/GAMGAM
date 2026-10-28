@@ -33,6 +33,9 @@ public class Appointment {
     @Column(nullable = false, length = 50)
     private String name;
 
+    @Column(name = "room_id", nullable = false, length = 64)
+    private String roomId;
+
     @Enumerated(EnumType.STRING)
     @Column(nullable = false, length = 20)
     private AppointmentTemplate template; // 약속 조율 템플릿(시간만 조율, 장소만 조율 등)
@@ -77,9 +80,11 @@ public class Appointment {
                        List<Place> candidatesPlace, Place confirmedPlace,
                        PenaltyRule penalty, RewardRule reward,
                        LocationSharingPolicy locationSharing,
-                       AppointmentStatus status) {
+                       AppointmentStatus status, String roomId) {
+        if (roomId == null || roomId.isBlank()) throw new IllegalArgumentException("roomId is required");
         this.id = id;
         this.name = name;
+        this.roomId = roomId;
         this.template = template;
         this.candidatesTime = candidatesTime != null ? candidatesTime : new ArrayList<>();
         this.confirmedTime = confirmedTime;
@@ -90,4 +95,5 @@ public class Appointment {
         this.locationSharing = locationSharing;
         this.status = status;
     }
+
 }
