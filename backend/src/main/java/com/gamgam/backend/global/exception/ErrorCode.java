@@ -14,6 +14,7 @@ public enum ErrorCode {
     NOT_COORDINATING(HttpStatus.CONFLICT, "Appointment is not being coordinated."),
     VOTE_NOT_ALLOWED(HttpStatus.BAD_REQUEST, "This appointment does not coordinate that item."),
     INVALID_OPTION(HttpStatus.BAD_REQUEST, "Option does not exist."),
+    DUPLICATE_CANDIDATE(HttpStatus.CONFLICT, "Candidate already exists."),
     ROOM_ACCESS_DENIED(HttpStatus.FORBIDDEN, "You are not a member of this room.");
 
     private final HttpStatus status;

@@ -1,7 +1,9 @@
 package com.gamgam.backend.api.v1;
 
 import com.gamgam.backend.appointment.dto.AppointmentVotingResponse;
+import com.gamgam.backend.appointment.dto.CreateAppointmentRequest.PlaceRequest;
 import com.gamgam.backend.appointment.dto.VoteRequest;
+import com.gamgam.backend.appointment.dto.TimeCandidateRequest;
 import com.gamgam.backend.appointment.dto.RegardlessVoteRequest;
 import com.gamgam.backend.appointment.service.AppointmentVotingService;
 import com.gamgam.backend.global.auth.CurrentUserProvider;
@@ -32,6 +34,17 @@ public class AppointmentVotingController {
     @PutMapping("/votes/place")
     public ApiResponse<AppointmentVotingResponse> place(@PathVariable String id, @Valid @RequestBody VoteRequest request) {
         return ApiResponse.ok(service.votePlace(id, currentUser.userId(), request.optionIndexes()));
+    }
+
+    @PostMapping("/time-candidates")
+    public ApiResponse<AppointmentVotingResponse> addTime(@PathVariable String id,
+            @Valid @RequestBody TimeCandidateRequest request) {
+        return ApiResponse.ok(service.addTimeCandidate(id, currentUser.userId(), request));
+    }
+
+    @PostMapping("/place-candidates")
+    public ApiResponse<AppointmentVotingResponse> addPlace(@PathVariable String id, @Valid @RequestBody PlaceRequest request) {
+        return ApiResponse.ok(service.addPlaceCandidate(id, currentUser.userId(), request));
     }
 
     // 상관없이 참여 선택

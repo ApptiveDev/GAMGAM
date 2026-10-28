@@ -1,11 +1,14 @@
 package com.gamgam.backend.appointment.service;
 
 import com.gamgam.backend.appointment.dto.AppointmentVotingResponse;
+import com.gamgam.backend.appointment.dto.TimeCandidateRequest;
+import com.gamgam.backend.appointment.dto.CreateAppointmentRequest.PlaceRequest;
 import com.gamgam.backend.appointment.entity.Appointment;
 import com.gamgam.backend.appointment.entity.AppointmentParticipant;
 import com.gamgam.backend.appointment.repository.AppointmentParticipantRepository;
 import com.gamgam.backend.appointment.repository.AppointmentRepository;
 import com.gamgam.backend.appointment.vo.AppointmentStatus;
+import com.gamgam.backend.appointment.vo.Place;
 import com.gamgam.backend.appointment.entity.AppointmentVote;
 import com.gamgam.backend.appointment.repository.AppointmentVoteRepository;
 import com.gamgam.backend.appointment.vo.VoteType;
@@ -14,6 +17,9 @@ import com.gamgam.backend.global.exception.ErrorCode;
 import com.gamgam.backend.global.util.KstTimeConverter;
 import com.gamgam.backend.room.RoomAccess;
 import java.util.List;
+import java.time.OffsetDateTime;
+import java.time.temporal.ChronoUnit;
+import java.util.Objects;
 import java.util.Set;
 import java.util.TreeSet;
 import java.util.stream.IntStream;
@@ -85,6 +91,48 @@ public class AppointmentVotingService {
         } else if (participant.getId() != null) {
             participants.delete(participant);
         }
+    }
+
+    @Transactional
+    public AppointmentVotingResponse addTimeCandidate(String id, String userId, TimeCandidateRequest request) {
+        Appointment appointment = load(id, userId, true);
+        requireCoordinating(appointment);
+        if (!appointment.getTemplate().coordinatesTime()) {
+            throw new BusinessException(ErrorCode.VOTE_NOT_ALLOWED);
+        }
+        if (request.time() == null || !request.time().isAfter(OffsetDateTime.now())) {
+            throw new BusinessException(ErrorCode.BAD_REQUEST);
+        }
+        var time = normalizeCandidateTime(request.time());
+        // 오프셋 표기가 달라도 같은 순간이면 중복 후보로 처리한다.
+        boolean duplicate = appointment.getCandidatesTime().stream()
+                .anyMatch(candidate -> normalizeCandidateTime(candidate).isEqual(time));
+        if (duplicate) throw new BusinessException(ErrorCode.DUPLICATE_CANDIDATE);
+        appointment.addCandidateTime(time);
+        return response(appointment, userId);
+    }
+
+    private static OffsetDateTime normalizeCandidateTime(OffsetDateTime time) {
+        // DB의 timestamp(6) 정밀도에 맞춰 반올림해 재요청 시에도 같은 후보로 인식한다.
+        return KstTimeConverter.toUtc(time).plusNanos(500).truncatedTo(ChronoUnit.MICROS);
+    }
+
+    @Transactional
+    public AppointmentVotingResponse addPlaceCandidate(String id, String userId, PlaceRequest request) {
+        Appointment appointment = load(id, userId, true);
+        requireCoordinating(appointment);
+        if (!appointment.getTemplate().coordinatesPlace()) {
+            throw new BusinessException(ErrorCode.VOTE_NOT_ALLOWED);
+        }
+        String name = request.name().strip();
+        boolean duplicate = appointment.getCandidatesPlace().stream().anyMatch(place ->
+                name.equalsIgnoreCase(place.name().strip())
+                        && Objects.equals(request.latitude(), place.latitude())
+                        && Objects.equals(request.longitude(), place.longitude()));
+        if (duplicate) throw new BusinessException(ErrorCode.DUPLICATE_CANDIDATE);
+        appointment.addCandidatePlace(new Place(name, request.latitude(), request.longitude()));
+        // 제안만으로 투표나 참여 신청을 만들지 않는다. 기존 투표도 그대로 유지한다.
+        return response(appointment, userId);
     }
 
     private Appointment load(String id, String userId, boolean forUpdate) {
