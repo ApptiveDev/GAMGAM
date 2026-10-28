@@ -23,6 +23,9 @@ class Appointment {
     this.lateThresholdMinutes = 10,
     this.penaltyAgreedIds = const [],
     this.lateCount = 0,
+    this.groupId,
+    this.imageAsset,
+    this.createdAt,
   });
 
   final String id;
@@ -48,12 +51,31 @@ class Appointment {
   /// 지난 약속의 지각자 수.
   final int lateCount;
 
+  /// 이 약속이 들어 있는 그룹(폴더). 서버에 그룹 API가 생기기 전에는 앱에서만 정한다.
+  final String? groupId;
+
+  /// 약속 썸네일 (앱 번들 이미지).
+  final String? imageAsset;
+
+  /// 그룹 안 "최근 만든 순" 정렬에 쓴다.
+  final DateTime? createdAt;
+
   bool get isCoordinating => status == AppointmentStatus.coordinating;
   bool get isConfirmed => status == AppointmentStatus.confirmed;
   bool get isCompleted => status == AppointmentStatus.completed;
 
   bool isHost(String userId) => hostId == userId;
   bool hasMember(String userId) => participants.any((p) => p.id == userId);
+
+  /// 시간·장소를 투표로 정하는 중인지. 둘 중 하나라도 아직 안 정해졌으면 true.
+  bool get isVotingTime => isCoordinating && confirmedTime == null;
+  bool get isVotingPlace => isCoordinating && confirmedPlace == null;
+
+  /// 이 후보 목록에 아직 한 표도 안 던진 사람 수.
+  int pendingVotersOf<T>(List<VoteOption<T>> options) {
+    final voted = options.expand((o) => o.voterIds).toSet();
+    return participants.where((p) => !voted.contains(p.id)).length;
+  }
 
   /// 확정 전이면 현재 1위 후보를 보여준다.
   DateTime? get time => confirmedTime ?? _leader(timeOptions)?.value;
@@ -82,6 +104,7 @@ class Appointment {
   }
 
   Appointment copyWith({
+    String? name,
     List<Participant>? participants,
     AppointmentStatus? status,
     List<TimeOption>? timeOptions,
@@ -92,10 +115,12 @@ class Appointment {
     int? lateThresholdMinutes,
     List<String>? penaltyAgreedIds,
     int? lateCount,
+    String? groupId,
+    String? imageAsset,
   }) =>
       Appointment(
         id: id,
-        name: name,
+        name: name ?? this.name,
         template: template,
         hostId: hostId,
         inviteCode: inviteCode,
@@ -109,5 +134,8 @@ class Appointment {
         lateThresholdMinutes: lateThresholdMinutes ?? this.lateThresholdMinutes,
         penaltyAgreedIds: penaltyAgreedIds ?? this.penaltyAgreedIds,
         lateCount: lateCount ?? this.lateCount,
+        groupId: groupId ?? this.groupId,
+        imageAsset: imageAsset ?? this.imageAsset,
+        createdAt: createdAt,
       );
 }

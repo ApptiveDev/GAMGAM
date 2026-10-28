@@ -13,7 +13,7 @@ import 'data/repositories/api_live_location_repository.dart';
 class GamgamApp extends StatefulWidget {
   const GamgamApp({super.key, this.repository, this.liveRepository, this.initialLocation});
 
-  /// 테스트나 백엔드 연결 시 다른 구현체를 넣는다. 기본값은 목업.
+  /// 테스트에서 다른 구현체를 넣는다. 기본값은 서버를 읽고, 서버에 없는 기능은 목업으로 채우는 구현체.
   final AppointmentRepository? repository;
   final LiveLocationRepository? liveRepository;
   final String? initialLocation;
@@ -44,11 +44,36 @@ class _GamgamAppState extends State<GamgamApp> {
         child: MaterialApp.router(
           title: 'GAMGAM',
           debugShowCheckedModeBanner: false,
-          theme: AppTheme.light,
+          theme: AppTheme.gam,
           routerConfig: _router,
           locale: const Locale('ko'),
           supportedLocales: const [Locale('ko')],
           localizationsDelegates: GlobalMaterialLocalizations.delegates,
+          builder: (context, child) => _PhoneWidth(child: child!),
         ),
       );
+}
+
+/// 화면은 휴대폰 세로 화면(Figma 360 폭) 기준이다. 웹·태블릿처럼 넓은 창에서는 가운데에 휴대폰 폭으로만 그린다.
+class _PhoneWidth extends StatelessWidget {
+  const _PhoneWidth({required this.child});
+
+  final Widget child;
+
+  static const maxWidth = 430.0;
+
+  @override
+  Widget build(BuildContext context) {
+    final media = MediaQuery.of(context);
+    if (media.size.width <= maxWidth) return child;
+    return ColoredBox(
+      color: const Color(0xFF2B2A28),
+      child: Center(
+        child: SizedBox(
+          width: maxWidth,
+          child: MediaQuery(data: media.copyWith(size: Size(maxWidth, media.size.height)), child: child),
+        ),
+      ),
+    );
+  }
 }

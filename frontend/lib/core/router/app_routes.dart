@@ -4,15 +4,19 @@
 abstract final class AppRoutes {
   // 하단 탭
   static const home = '/';
-  static const records = '/records';
+  static const groups = '/groups';
   static const profile = '/profile';
 
-  // 핵심기능 #1 — 약속 생성
-  static const create = '/appointments/new';
-  static const createDetails = '/appointments/new/details';
+  // 그룹(폴더) — 약속은 그룹 안에서 만든다.
+  static const createGroup = '/groups/new';
+  static String group(String id) => '/groups/$id';
+  static String groupSearch(String id) => '/groups/$id/search';
+  static String createAppointment(String groupId) => '/groups/$groupId/new';
 
-  // 핵심기능 #1 — 방 (약속 하나 = 방 하나)
+  // 약속 상세 (예전 "방"). 지도·도착 화면이 이 경로로 돌아오므로 주소를 바꾸지 않는다.
   static String room(String id) => '/appointments/$id';
+  static String rename(String id) => '/appointments/$id/rename';
+  static String pickPlace(String id) => '/appointments/$id/places';
   static String penalty(String id) => '/appointments/$id/penalty';
   static String confirmed(String id) => '/appointments/$id/confirmed';
 

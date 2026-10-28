@@ -28,7 +28,7 @@ void main() {
     await tester.pumpAndSettle();
 
     // 처음 들어가면 06 위치 공유 설정을 먼저 보여준다.
-    await tester.tap(find.text('당일 지도 열기'));
+    await tester.tap(find.text('지도에서 보기'));
     await tester.pumpAndSettle();
     expect(find.text('이 방에서 내 위치를\n어디까지 보여줄까요?'), findsOneWidget);
     await tester.tap(find.text('친한 방'));
@@ -78,7 +78,7 @@ void main() {
     await tester.pumpWidget(GamgamApp(repository: repo, liveRepository: live, initialLocation: '/appointments/a-hongdae'));
     await tester.pumpAndSettle();
 
-    await tester.tap(find.text('당일 지도 열기'));
+    await tester.tap(find.text('지도에서 보기'));
     await tester.pumpAndSettle();
     await tester.tap(find.text('나중에 정하기'));
     await advance(tester);
@@ -87,7 +87,7 @@ void main() {
 
     await tester.tap(find.byTooltip('뒤로'));
     await advance(tester);
-    await tester.tap(find.text('당일 지도 열기'));
+    await tester.tap(find.text('지도에서 보기'));
     await tester.pumpAndSettle();
     expect(find.text('이 방에서 내 위치를\n어디까지 보여줄까요?'), findsOneWidget);
   });
