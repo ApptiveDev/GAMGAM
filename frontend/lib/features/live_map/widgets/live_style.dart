@@ -31,6 +31,9 @@ abstract final class LiveColors {
   /// 지도 위 흰 버튼·카드 테두리.
   static const border = Color(0xFFDBDBDB);
   static const sharingOffOverlay = Color(0xB3DBDBDB);
+
+  /// 시트를 끝까지 올린 전체 화면(767:21626)에서는 덮개가 조금 더 밝다.
+  static const sharingOffOverlayLight = Color(0xB3ECECEC);
   static const shadow = Color(0x33212121);
 }
 
@@ -55,13 +58,22 @@ class LiveIcon extends StatelessWidget {
 /// [PhotoAvatar]에 당일 지도 상태를 얹는다. 선택되면 파란 테두리 + 후광,
 /// 위치 공유를 끈 사람은 점선 테두리 + 회색으로 덮는다.
 class LiveAvatar extends StatelessWidget {
-  const LiveAvatar(this.participant, {super.key, required this.size, required this.borderWidth, this.off = false, this.selected = false});
+  const LiveAvatar(
+    this.participant, {
+    super.key,
+    required this.size,
+    required this.borderWidth,
+    this.off = false,
+    this.selected = false,
+    this.offOverlay = LiveColors.sharingOffOverlay,
+  });
 
   final Participant participant;
   final double size;
   final double borderWidth;
   final bool off;
   final bool selected;
+  final Color offOverlay;
 
   @override
   Widget build(BuildContext context) {
@@ -72,7 +84,7 @@ class LiveAvatar extends StatelessWidget {
         color: LiveColors.border,
         child: Stack(children: [
           photo,
-          Positioned.fill(child: Container(decoration: const BoxDecoration(shape: BoxShape.circle, color: LiveColors.sharingOffOverlay))),
+          Positioned.fill(child: Container(decoration: BoxDecoration(shape: BoxShape.circle, color: offOverlay))),
         ]),
       );
     }

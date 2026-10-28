@@ -14,13 +14,17 @@ class LiveStatusLine extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final (main, detail) = LiveText.statusParts(person);
+    // 좁으면 뒤(이동수단·시각)부터 말줄임.
     return Row(mainAxisSize: MainAxisSize.min, children: [
-      Text(main, style: liveText(size, FontWeight.w500, LiveColors.textStrong)),
+      Flexible(child: Text(main, maxLines: 1, overflow: TextOverflow.ellipsis, style: liveText(size, FontWeight.w500, LiveColors.textStrong))),
       if (detail != null) ...[
         const SizedBox(width: 3),
         Text('·', style: liveText(size == 13 ? 11 : 12, FontWeight.w700, LiveColors.textStrong)),
         const SizedBox(width: 3),
-        Text(detail, style: liveText(12, FontWeight.w400, LiveColors.textStrong)),
+        Flexible(
+          flex: 2,
+          child: Text(detail, maxLines: 1, overflow: TextOverflow.ellipsis, style: liveText(12, FontWeight.w400, LiveColors.textStrong)),
+        ),
       ],
     ]);
   }

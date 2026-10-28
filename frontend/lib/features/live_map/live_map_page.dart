@@ -9,6 +9,7 @@ import '../../core/router/app_routes.dart';
 import '../../core/theme/app_colors.dart';
 import '../../core/utils/date_text.dart';
 import '../../core/widgets/layout.dart';
+import '../../data/mock/mock_data.dart';
 import '../../data/models/appointment.dart';
 import '../../data/models/live_location.dart';
 import '../../data/repositories/appointment_repository.dart';
@@ -43,6 +44,9 @@ class _LiveMapPageState extends State<LiveMapPage> {
   /// 지도에서 누른 사람. 지도 빈 곳을 누르면 풀린다.
   String? _selectedId;
   final _camera = LiveMapCamera();
+
+  /// 상태 메시지. 저장·편집이 붙기 전까지는 약속 상세와 같은 목업을 보여준다.
+  static const _statusMessages = MockData.statusMessages;
 
   @override
   void initState() {
@@ -164,6 +168,7 @@ class _LiveMapPageState extends State<LiveMapPage> {
                     rank: ranks[selected.id],
                     cooldown: live.pokeCooldownOf(a.id, selected.id),
                     onPoke: () => _poke(selected),
+                    statusMessage: _statusMessages[selected.id],
                   ),
           ),
         ),
@@ -173,6 +178,7 @@ class _LiveMapPageState extends State<LiveMapPage> {
           cooldownOf: (id) => live.pokeCooldownOf(a.id, id),
           onPoke: _poke,
           onShowResult: () => context.pushReplacement(AppRoutes.arrival(a.id)),
+          statusMessages: _statusMessages,
         ),
         if (_preview) const _PreviewTag(),
         if (_incoming != null)
