@@ -1,6 +1,5 @@
 import 'package:flutter/material.dart';
 
-import '../../../core/theme/app_colors.dart';
 import 'live_style.dart';
 
 /// 지도 위 상단 오버레이: 왼쪽 닫기, 오른쪽 더보기와 [내 위치 · 목적지] 버튼.

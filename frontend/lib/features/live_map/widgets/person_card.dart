@@ -1,6 +1,5 @@
 import 'package:flutter/material.dart';
 
-import '../../../core/theme/app_colors.dart';
 import '../../../data/models/live_location.dart';
 import 'live_person.dart';
 import 'live_style.dart';

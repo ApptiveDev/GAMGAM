@@ -2,7 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_map/flutter_map.dart';
 import 'package:latlong2/latlong.dart';
 
-import '../../../core/theme/app_colors.dart';
+import '../../../core/theme/gam_colors.dart';
 import '../../../data/models/geo_point.dart';
 
 /// 지도 위에 올릴 사람 한 명.
@@ -120,7 +120,7 @@ class _LiveMapViewState extends State<LiveMapView> {
             for (final p in widget.pins)
               Polyline(
                 points: [_latLng(p.position), _latLng(widget.destination)],
-                color: AppPalette.gray500,
+                color: GamColors.text400,
                 strokeWidth: 2,
                 pattern: StrokePattern.dashed(segments: const [6, 6]),
               ),
