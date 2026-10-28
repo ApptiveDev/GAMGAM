@@ -2,7 +2,6 @@ package com.gamgam.backend.room;
 
 import com.gamgam.backend.global.exception.BusinessException;
 import com.gamgam.backend.global.exception.ErrorCode;
-import java.util.Set;
 import org.springframework.context.annotation.Profile;
 import org.springframework.stereotype.Component;
 
@@ -10,15 +9,11 @@ import org.springframework.stereotype.Component;
 @Component
 @Profile("local")
 public class LocalRoomAccess implements RoomAccess {
-    private static final Set<String> MEMBERS = Set.of("u-yeeun", "u-doyun", "u-seoa", "u-minjun", "u-harin");
-
     @Override
     public void requireMember(String roomId, String userId) {
         if (!"demo-room".equals(roomId)) {
             throw new BusinessException(ErrorCode.ROOM_NOT_FOUND);
         }
-        if (!MEMBERS.contains(userId)) {
-            throw new BusinessException(ErrorCode.ROOM_ACCESS_DENIED);
-        }
+        if (userId == null || userId.isBlank()) throw new BusinessException(ErrorCode.ROOM_ACCESS_DENIED);
     }
 }

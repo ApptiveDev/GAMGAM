@@ -1,207 +1,99 @@
 package com.gamgam.backend.appointment.service;
 
-import static com.gamgam.backend.appointment.AppointmentFixtures.*;
+import static com.gamgam.backend.appointment.AppointmentFixtures.all;
+import static com.gamgam.backend.appointment.AppointmentFixtures.both;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
-import static org.mockito.Mockito.*;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.when;
 
-import com.gamgam.backend.appointment.dto.CreateAppointmentRequest;
-import com.gamgam.backend.appointment.dto.CreateAppointmentRequest.LocationSharingRequest;
-import com.gamgam.backend.appointment.dto.CreateAppointmentRequest.RewardRequest;
 import com.gamgam.backend.appointment.entity.Appointment;
+import com.gamgam.backend.appointment.entity.AppointmentMember;
+import com.gamgam.backend.appointment.repository.AppointmentMemberRepository;
+import com.gamgam.backend.appointment.repository.AppointmentPlaceVoteRepository;
 import com.gamgam.backend.appointment.repository.AppointmentRepository;
+import com.gamgam.backend.appointment.repository.AppointmentTimeVoteRepository;
+import com.gamgam.backend.appointment.repository.PenaltyAgreementRepository;
+import com.gamgam.backend.appointment.vo.AppointmentMemberRole;
 import com.gamgam.backend.appointment.vo.AppointmentStatus;
-import com.gamgam.backend.appointment.vo.AppointmentTemplate;
-import com.gamgam.backend.appointment.vo.LocationSharingPolicy;
 import com.gamgam.backend.global.config.ShareProperties;
 import com.gamgam.backend.global.exception.BusinessException;
 import com.gamgam.backend.global.exception.ErrorCode;
+import com.gamgam.backend.user.entity.User;
+import com.gamgam.backend.user.repository.UserRepository;
 import com.gamgam.backend.room.RoomAccess;
-import java.time.OffsetDateTime;
-import java.time.ZoneOffset;
+import java.util.List;
 import java.util.Optional;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
-import org.junit.jupiter.api.extension.ExtendWith;
-import org.mockito.ArgumentCaptor;
-import org.mockito.Mock;
-import org.mockito.junit.jupiter.MockitoExtension;
 
-@ExtendWith(MockitoExtension.class)
 class AppointmentServiceTests {
-
-    private static final String BASE_URL = "http://localhost:3000";
-
-    @Mock
-    private AppointmentRepository repository;
-
-    @Mock
-    private RoomAccess rooms;
-
+    private AppointmentRepository appointments;
+    private AppointmentMemberRepository members;
+    private UserRepository users;
     private AppointmentService service;
+    private User user;
 
     @BeforeEach
     void setUp() {
-        service = new AppointmentService(repository, new ShareLinkGenerator(new ShareProperties(BASE_URL)), rooms);
-        lenient().when(repository.save(any(Appointment.class))).thenAnswer(inv -> inv.getArgument(0));
-    }
-
-    private Appointment savedEntity() {
-        var captor = ArgumentCaptor.forClass(Appointment.class);
-        verify(repository).save(captor.capture());
-        return captor.getValue();
+        appointments = mock(AppointmentRepository.class);
+        members = mock(AppointmentMemberRepository.class);
+        var timeVotes = mock(AppointmentTimeVoteRepository.class);
+        var placeVotes = mock(AppointmentPlaceVoteRepository.class);
+        var agreements = mock(PenaltyAgreementRepository.class);
+        users = mock(UserRepository.class);
+        RoomAccess rooms = mock(RoomAccess.class);
+        service = new AppointmentService(appointments, members, timeVotes, placeVotes, agreements, users,
+                new ShareLinkGenerator(new ShareProperties("http://localhost:3000")), rooms);
+        user = User.builder().id("user-1").email("user@example.com").name("User").passwordHash("hash").build();
+        when(users.findById("user-1")).thenReturn(Optional.of(user));
+        when(appointments.save(any(Appointment.class))).thenAnswer(invocation -> invocation.getArgument(0));
+        when(members.save(any(AppointmentMember.class))).thenAnswer(invocation -> invocation.getArgument(0));
+        when(members.findAllByAppointmentIdOrderByJoinedAtAsc(any())).thenReturn(List.of());
+        when(timeVotes.findAllByAppointmentId(any())).thenReturn(List.of());
+        when(placeVotes.findAllByAppointmentId(any())).thenReturn(List.of());
+        when(agreements.findAllByAppointmentId(any())).thenReturn(List.of());
     }
 
     @Test
-    void ALL_템플릿은_바로_CONFIRMED로_시작한다() {
-        var response = service.create("demo-room", "u-yeeun", all());
+    void creatorBecomesHostAndGetsInviteCode() {
+        var response = service.create("demo-room", "user-1", all());
 
+        assertThat(response.hostId()).isEqualTo("user-1");
+        assertThat(response.inviteCode()).hasSize(8);
+        assertThat(response.shareUrl()).endsWith("/invite/" + response.inviteCode());
         assertThat(response.status()).isEqualTo(AppointmentStatus.CONFIRMED);
-        assertThat(response.template()).isEqualTo(AppointmentTemplate.ALL);
-        assertThat(response.confirmedTime()).isNotNull();
-        assertThat(response.confirmedPlace().name()).isEqualTo("연남동 소금집 델리");
     }
 
     @Test
-    void 조율이_필요한_템플릿은_COORDINATING으로_시작한다() {
-        assertThat(service.create("demo-room", "u-yeeun", timeOnly()).status()).isEqualTo(AppointmentStatus.COORDINATING);
+    void coordinatingTemplateStartsCoordinating() {
+        assertThat(service.create("demo-room", "user-1", both()).status()).isEqualTo(AppointmentStatus.COORDINATING);
     }
 
     @Test
-    void 장소나_시간_후보가_응답에_그대로_담긴다() {
-        var response = service.create("demo-room", "u-yeeun", both());
+    void outsiderCannotReadAppointment() {
+        Appointment appointment = Appointment.builder().id("a-1").name("meeting").roomId("demo-room")
+                .hostId("host").inviteCode("ABCDEFGH").template(com.gamgam.backend.appointment.vo.AppointmentTemplate.ALL)
+                .status(AppointmentStatus.CONFIRMED).build();
+        when(appointments.findById("a-1")).thenReturn(Optional.of(appointment));
+        when(members.existsByAppointmentIdAndUserId("a-1", "user-1")).thenReturn(false);
 
-        assertThat(response.candidatesTime()).hasSize(2);
-        assertThat(response.candidatesPlace()).extracting("name").containsExactly("성수 카페거리", "서울숲");
-        assertThat(response.confirmedTime()).isNull();
-        assertThat(response.confirmedPlace()).isNull();
-    }
-
-    @Test
-    void 저장할_때는_UTC_응답할_때는_KST다() {
-        var request = timeOnly();
-
-        var response = service.create("demo-room", "u-yeeun", request);
-
-        var entity = savedEntity();
-        assertThat(entity.getCandidatesTime()).allMatch(t -> t.getOffset().equals(ZoneOffset.UTC));
-        assertThat(response.candidatesTime()).allMatch(t -> t.getOffset().getTotalSeconds() == 9 * 3600);
-        // 시각 자체는 변하지 않는다
-        assertThat(response.candidatesTime().get(0).toInstant())
-                .isEqualTo(request.candidatesTime().get(0).toInstant());
-    }
-
-    @Test
-    void 다른_오프셋으로_보내도_같은_시각으로_저장된다() {
-        var utcTime = OffsetDateTime.now(ZoneOffset.UTC).plusDays(3).withNano(0);
-        var request = new CreateAppointmentRequest("모임", AppointmentTemplate.ALL,
-                null, utcTime, null, place("연남동"), null, null, null);
-
-        var response = service.create("demo-room", "u-yeeun", request);
-
-        assertThat(response.confirmedTime().toInstant()).isEqualTo(utcTime.toInstant());
-        assertThat(savedEntity().getConfirmedTime().getOffset()).isEqualTo(ZoneOffset.UTC);
-    }
-
-    @Test
-    void 위치공유_미지정이면_기본값이_적용된다() {
-        var response = service.create("demo-room", "u-yeeun", all());
-
-        assertThat(response.locationSharing()).isEqualTo(LocationSharingPolicy.defaults());
-    }
-
-    @Test
-    void 위치공유를_지정하면_그_값을_쓴다() {
-        var request = new CreateAppointmentRequest("모임", AppointmentTemplate.ALL,
-                null, future(3), null, place("연남동"), null, null, new LocationSharingRequest(120, 15));
-
-        var response = service.create("demo-room", "u-yeeun", request);
-
-        assertThat(response.locationSharing()).isEqualTo(new LocationSharingPolicy(120, 15));
-    }
-
-    @Test
-    void 벌칙과_보상을_지정하면_응답에_담긴다() {
-        var withRules = new CreateAppointmentRequest("모임", AppointmentTemplate.ALL,
-                null, future(3), null, place("연남동"), penalty(), new RewardRequest("커피 쿠폰"), null);
-
-        var response = service.create("demo-room", "u-yeeun", withRules);
-        assertThat(response.penalty().description()).isEqualTo("커피 사기");
-        assertThat(response.penalty().lateThresholdMin().minutes()).isEqualTo(10);
-        assertThat(response.reward().description()).isEqualTo("커피 쿠폰");
-    }
-
-    @Test
-    void 벌칙_보상을_안_주면_null이다() {
-        var response = service.create("demo-room", "u-yeeun", all());
-
-        assertThat(response.penalty()).isNull();
-        assertThat(response.reward()).isNull();
-    }
-
-    @Test
-    void 생성하면_UUID_id와_공유링크가_만들어진다() {
-        var response = service.create("demo-room", "u-yeeun", all());
-
-        assertThat(response.id()).hasSize(36);
-        assertThat(response.shareUrl()).isEqualTo(BASE_URL + "/appointments/" + response.id());
-    }
-
-    @Test
-    void 조회하면_저장된_약속을_응답으로_변환한다() {
-        var entity = Appointment.builder()
-                .id("abc")
-                .roomId("demo-room")
-                .name("동기 모임")
-                .template(AppointmentTemplate.ALL)
-                .confirmedTime(OffsetDateTime.parse("2030-01-01T10:00:00Z"))
-                .confirmedPlace(place("연남동").toDomain())
-                .locationSharing(LocationSharingPolicy.defaults())
-                .status(AppointmentStatus.CONFIRMED)
-                .build();
-        when(repository.findById("abc")).thenReturn(Optional.of(entity));
-
-        var response = service.get("abc", "u-yeeun");
-
-        assertThat(response.id()).isEqualTo("abc");
-        assertThat(response.confirmedTime().getHour()).isEqualTo(19); // 10:00Z -> 19:00 KST
-        assertThat(response.shareUrl()).isEqualTo(BASE_URL + "/appointments/abc");
-    }
-
-    @Test
-    void 없는_약속을_조회하면_APPOINTMENT_NOT_FOUND다() {
-        when(repository.findById("missing")).thenReturn(Optional.empty());
-
-        assertThatThrownBy(() -> service.get("missing", "u-yeeun"))
+        assertThatThrownBy(() -> service.get("user-1", "a-1"))
                 .isInstanceOfSatisfying(BusinessException.class,
-                        e -> assertThat(e.errorCode()).isEqualTo(ErrorCode.APPOINTMENT_NOT_FOUND));
+                        error -> assertThat(error.errorCode()).isEqualTo(ErrorCode.APPOINTMENT_ACCESS_DENIED));
     }
 
     @Test
-    void 방_ID와_멤버십을_확인한_뒤_생성한다() {
-        var response = service.create("demo-room", "u-yeeun", both());
-        assertThat(response.roomId()).isEqualTo("demo-room");
-        assertThat(savedEntity().getRoomId()).isEqualTo("demo-room");
-        verify(rooms).requireMember("demo-room", "u-yeeun");
-    }
+    void duplicateJoinIsRejected() {
+        Appointment appointment = Appointment.builder().id("a-1").name("meeting").roomId("demo-room")
+                .hostId("host").inviteCode("ABCDEFGH").template(com.gamgam.backend.appointment.vo.AppointmentTemplate.ALL)
+                .status(AppointmentStatus.CONFIRMED).build();
+        when(appointments.findByInviteCode("ABCDEFGH")).thenReturn(Optional.of(appointment));
+        when(members.existsByAppointmentIdAndUserId("a-1", "user-1")).thenReturn(true);
 
-    @Test
-    void 방_ID가_없거나_멤버가_아니면_저장하지_않는다() {
-        for (String roomId : new String[]{null, "", "  "}) {
-            assertThatThrownBy(() -> service.create(roomId, "u-yeeun", both()))
-                    .isInstanceOfSatisfying(BusinessException.class,
-                            ex -> assertThat(ex.errorCode()).isEqualTo(ErrorCode.BAD_REQUEST));
-        }
-        doThrow(new BusinessException(ErrorCode.ROOM_ACCESS_DENIED)).when(rooms).requireMember("demo-room", "outsider");
-        assertThatThrownBy(() -> service.create("demo-room", "outsider", both())).isInstanceOf(BusinessException.class);
-        verify(repository, never()).save(any());
-    }
-
-    @Test
-    void 방_멤버만_목록을_조회할_수_있다() {
-        doThrow(new BusinessException(ErrorCode.ROOM_ACCESS_DENIED)).when(rooms).requireMember("demo-room", "outsider");
-        assertThatThrownBy(() -> service.list("demo-room", "outsider")).isInstanceOf(BusinessException.class);
-        verify(repository, never()).findByRoomIdOrderByCreatedAtDesc(any());
+        assertThatThrownBy(() -> service.join("user-1", "abcdefgh"))
+                .isInstanceOfSatisfying(BusinessException.class,
+                        error -> assertThat(error.errorCode()).isEqualTo(ErrorCode.ALREADY_JOINED));
     }
 }

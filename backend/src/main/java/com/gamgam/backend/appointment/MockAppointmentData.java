@@ -13,6 +13,7 @@ import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 
 @Configuration
+@org.springframework.context.annotation.Profile("legacy-mock")
 public class MockAppointmentData {
 
     @Bean
@@ -25,8 +26,10 @@ public class MockAppointmentData {
             var tomorrow = OffsetDateTime.now().plusDays(1).withHour(19).withMinute(0).withSecond(0).withNano(0);
             repository.saveAll(List.of(
                     Appointment.builder()
-                            .id("demo-hongdae")
+                            .id("a-hongdae")
                             .roomId("demo-room")
+                            .hostId("u-yeeun")
+                            .inviteCode("HONGDAE")
                             .name("홍대 저녁 모임")
                             .template(AppointmentTemplate.BOTH)
                             .candidatesTime(List.of(tomorrow, tomorrow.plusHours(1)))
@@ -35,8 +38,10 @@ public class MockAppointmentData {
                             .status(AppointmentStatus.COORDINATING)
                             .build(),
                     Appointment.builder()
-                            .id("demo-seongsu")
+                            .id("a-seongsu")
                             .roomId("demo-room")
+                            .hostId("u-seoa")
+                            .inviteCode("SEONGSU")
                             .name("성수 브런치")
                             .template(AppointmentTemplate.ALL)
                             .confirmedTime(tomorrow.plusDays(2).withHour(11))

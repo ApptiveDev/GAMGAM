@@ -13,10 +13,10 @@ public class ShareLinkGenerator {
         this.shareProperties = shareProperties;
     }
 
-    public String create(String appointmentId) {
+    public String create(String inviteCode) {
         return UriComponentsBuilder.fromUriString(shareProperties.baseUrl())
-                .path("/appointments/{id}")
-                .buildAndExpand(appointmentId)
+                .path("/invite/{code}")
+                .buildAndExpand(inviteCode)
                 .toUriString();
     }
 }
