@@ -40,7 +40,7 @@ class AppointmentPersistenceTests {
 
     @Test
     void 생성한_약속을_id로_다시_조회할_수_있다() {
-        var created = service.create(userId, both());
+        var created = service.create("demo-room", userId, both());
 
         var found = service.get(userId, created.id());
 
@@ -53,7 +53,7 @@ class AppointmentPersistenceTests {
     @Test
     void 후보_리스트의_순서와_개수가_유지된다() {
         var request = both();
-        var created = service.create(userId, request);
+        var created = service.create("demo-room", userId, request);
 
         var found = service.get(userId, created.id());
 
@@ -67,7 +67,7 @@ class AppointmentPersistenceTests {
 
     @Test
     void 조회_응답의_시간은_KST_오프셋이다() {
-        var created = service.create(userId, all());
+        var created = service.create("demo-room", userId, all());
 
         var found = service.get(userId, created.id());
 
@@ -76,7 +76,7 @@ class AppointmentPersistenceTests {
 
     @Test
     void 확정_장소_좌표와_생성시각이_저장된다() {
-        var created = service.create(userId, all());
+        var created = service.create("demo-room", userId, all());
 
         var found = service.get(userId, created.id());
 
@@ -95,7 +95,7 @@ class AppointmentPersistenceTests {
 
     @Test
     void inviteJoinVoteAndHostPermissionArePersisted() {
-        var created = service.create(userId, both());
+        var created = service.create("demo-room", userId, both());
         String guestId = authService.signup(new SignupRequest(
                 java.util.UUID.randomUUID() + "@example.com", "password123", "Guest User")).id();
 

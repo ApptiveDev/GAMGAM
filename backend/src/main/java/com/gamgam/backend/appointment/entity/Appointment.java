@@ -7,6 +7,10 @@ import com.gamgam.backend.appointment.vo.PenaltyRule;
 import com.gamgam.backend.appointment.vo.Place;
 import com.gamgam.backend.appointment.vo.RewardRule;
 import jakarta.persistence.*;
+import java.time.Instant;
+import java.time.OffsetDateTime;
+import java.util.ArrayList;
+import java.util.List;
 import lombok.AccessLevel;
 import lombok.Builder;
 import lombok.Getter;
@@ -14,78 +18,53 @@ import lombok.NoArgsConstructor;
 import org.springframework.data.annotation.CreatedDate;
 import org.springframework.data.jpa.domain.support.AuditingEntityListener;
 
-import java.time.Instant;
-import java.time.OffsetDateTime;
-import java.util.ArrayList;
-import java.util.List;
-
 @Entity
 @Getter
 @NoArgsConstructor(access = AccessLevel.PROTECTED)
 @EntityListeners(AuditingEntityListener.class)
 @Table(name = "appointments")
 public class Appointment {
-
-    @Id
-    @Column(length = 36)
+    @Id @Column(length = 36)
     private String id;
-
     @Column(nullable = false, length = 50)
     private String name;
-
+    @Column(name = "room_id", nullable = false, length = 64)
+    private String roomId;
     @Column(name = "host_id", nullable = false, length = 36)
     private String hostId;
-
     @Column(name = "invite_code", nullable = false, unique = true, length = 12)
     private String inviteCode;
-
-    @Enumerated(EnumType.STRING)
-    @Column(nullable = false, length = 20)
-    private AppointmentTemplate template; // 약속 조율 템플릿(시간만 조율, 장소만 조율 등)
-
+    @Enumerated(EnumType.STRING) @Column(nullable = false, length = 20)
+    private AppointmentTemplate template;
     @ElementCollection
     @CollectionTable(name = "appointment_candidate_times", joinColumns = @JoinColumn(name = "appointment_id"))
-    @OrderColumn(name = "candidate_order")
-    @Column(name = "candidate_time", nullable = false)
-    private List<OffsetDateTime> candidatesTime = new ArrayList<>(); // 약속 시간 후보 리스트
-
+    @OrderColumn(name = "candidate_order") @Column(name = "candidate_time", nullable = false)
+    private List<OffsetDateTime> candidatesTime = new ArrayList<>();
     @Column(name = "confirmed_time")
-    private OffsetDateTime confirmedTime; // 확정된 약속 시간
-
+    private OffsetDateTime confirmedTime;
     @ElementCollection
     @CollectionTable(name = "appointment_candidate_places", joinColumns = @JoinColumn(name = "appointment_id"))
     @OrderColumn(name = "candidate_order")
-    private List<Place> candidatesPlace = new ArrayList<>(); // 약속 장소 후보 리스트
-
-    @Embedded
-    private Place confirmedPlace; // 확정된 약속 장소
-
-    @Embedded
-    private PenaltyRule penalty; // 벌칙 규칙(벌칙 기준, 종류 등)
-
-    @Embedded
-    private RewardRule reward; // 보상 규칙
-
-    @Embedded
-    private LocationSharingPolicy locationSharing; // 위치 공유 규칙(위치 공유 시간)
-
-    @Enumerated(EnumType.STRING)
-    @Column(nullable = false, length = 20)
-    private AppointmentStatus status; // 약속 상태(조율 중, 확정, 종료)
-
-    @CreatedDate
-    @Column(nullable = false, updatable = false)
+    private List<Place> candidatesPlace = new ArrayList<>();
+    @Embedded private Place confirmedPlace;
+    @Embedded private PenaltyRule penalty;
+    @Embedded private RewardRule reward;
+    @Embedded private LocationSharingPolicy locationSharing;
+    @Enumerated(EnumType.STRING) @Column(nullable = false, length = 20)
+    private AppointmentStatus status;
+    @CreatedDate @Column(nullable = false, updatable = false)
     private Instant createdAt;
 
     @Builder
-    public Appointment(String id, String name, String hostId, String inviteCode, AppointmentTemplate template,
-                       List<OffsetDateTime> candidatesTime, OffsetDateTime confirmedTime,
-                       List<Place> candidatesPlace, Place confirmedPlace,
-                       PenaltyRule penalty, RewardRule reward,
-                       LocationSharingPolicy locationSharing,
+    public Appointment(String id, String name, String roomId, String hostId, String inviteCode,
+                       AppointmentTemplate template, List<OffsetDateTime> candidatesTime,
+                       OffsetDateTime confirmedTime, List<Place> candidatesPlace, Place confirmedPlace,
+                       PenaltyRule penalty, RewardRule reward, LocationSharingPolicy locationSharing,
                        AppointmentStatus status) {
+        if (roomId == null || roomId.isBlank()) throw new IllegalArgumentException("roomId is required");
         this.id = id;
         this.name = name;
+        this.roomId = roomId;
         this.hostId = hostId;
         this.inviteCode = inviteCode;
         this.template = template;
@@ -100,24 +79,12 @@ public class Appointment {
     }
 
     public void confirm(Integer timeOptionIndex, Integer placeOptionIndex) {
-        if (template.coordinatesTime()) {
-            this.confirmedTime = candidatesTime.get(timeOptionIndex);
-        }
-        if (template.coordinatesPlace()) {
-            this.confirmedPlace = candidatesPlace.get(placeOptionIndex);
-        }
-        this.status = AppointmentStatus.CONFIRMED;
+        if (template.coordinatesTime()) confirmedTime = candidatesTime.get(timeOptionIndex);
+        if (template.coordinatesPlace()) confirmedPlace = candidatesPlace.get(placeOptionIndex);
+        status = AppointmentStatus.CONFIRMED;
     }
 
-    public void addCandidateTime(OffsetDateTime time) {
-        this.candidatesTime.add(time);
-    }
-
-    public void updatePenalty(PenaltyRule penalty) {
-        this.penalty = penalty;
-    }
-
-    public void complete() {
-        this.status = AppointmentStatus.COMPLETED;
-    }
+    public void addCandidateTime(OffsetDateTime time) { candidatesTime.add(time); }
+    public void updatePenalty(PenaltyRule penalty) { this.penalty = penalty; }
+    public void complete() { status = AppointmentStatus.COMPLETED; }
 }

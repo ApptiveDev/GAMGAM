@@ -22,6 +22,7 @@ import com.gamgam.backend.global.exception.BusinessException;
 import com.gamgam.backend.global.exception.ErrorCode;
 import com.gamgam.backend.user.entity.User;
 import com.gamgam.backend.user.repository.UserRepository;
+import com.gamgam.backend.room.RoomAccess;
 import java.util.List;
 import java.util.Optional;
 import org.junit.jupiter.api.BeforeEach;
@@ -42,8 +43,9 @@ class AppointmentServiceTests {
         var placeVotes = mock(AppointmentPlaceVoteRepository.class);
         var agreements = mock(PenaltyAgreementRepository.class);
         users = mock(UserRepository.class);
+        RoomAccess rooms = mock(RoomAccess.class);
         service = new AppointmentService(appointments, members, timeVotes, placeVotes, agreements, users,
-                new ShareLinkGenerator(new ShareProperties("http://localhost:3000")));
+                new ShareLinkGenerator(new ShareProperties("http://localhost:3000")), rooms);
         user = User.builder().id("user-1").email("user@example.com").name("User").passwordHash("hash").build();
         when(users.findById("user-1")).thenReturn(Optional.of(user));
         when(appointments.save(any(Appointment.class))).thenAnswer(invocation -> invocation.getArgument(0));
@@ -56,7 +58,7 @@ class AppointmentServiceTests {
 
     @Test
     void creatorBecomesHostAndGetsInviteCode() {
-        var response = service.create("user-1", all());
+        var response = service.create("demo-room", "user-1", all());
 
         assertThat(response.hostId()).isEqualTo("user-1");
         assertThat(response.inviteCode()).hasSize(8);
@@ -66,12 +68,12 @@ class AppointmentServiceTests {
 
     @Test
     void coordinatingTemplateStartsCoordinating() {
-        assertThat(service.create("user-1", both()).status()).isEqualTo(AppointmentStatus.COORDINATING);
+        assertThat(service.create("demo-room", "user-1", both()).status()).isEqualTo(AppointmentStatus.COORDINATING);
     }
 
     @Test
     void outsiderCannotReadAppointment() {
-        Appointment appointment = Appointment.builder().id("a-1").name("meeting")
+        Appointment appointment = Appointment.builder().id("a-1").name("meeting").roomId("demo-room")
                 .hostId("host").inviteCode("ABCDEFGH").template(com.gamgam.backend.appointment.vo.AppointmentTemplate.ALL)
                 .status(AppointmentStatus.CONFIRMED).build();
         when(appointments.findById("a-1")).thenReturn(Optional.of(appointment));
@@ -84,7 +86,7 @@ class AppointmentServiceTests {
 
     @Test
     void duplicateJoinIsRejected() {
-        Appointment appointment = Appointment.builder().id("a-1").name("meeting")
+        Appointment appointment = Appointment.builder().id("a-1").name("meeting").roomId("demo-room")
                 .hostId("host").inviteCode("ABCDEFGH").template(com.gamgam.backend.appointment.vo.AppointmentTemplate.ALL)
                 .status(AppointmentStatus.CONFIRMED).build();
         when(appointments.findByInviteCode("ABCDEFGH")).thenReturn(Optional.of(appointment));

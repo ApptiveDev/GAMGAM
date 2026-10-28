@@ -49,12 +49,12 @@ class AppointmentControllerTests {
 
     @Test
     void authenticatedUserCreatesAppointment() throws Exception {
-        when(service.create(eq(USER_ID), any(CreateAppointmentRequest.class))).thenReturn(sample());
+        when(service.create(eq("demo-room"), eq(USER_ID), any(CreateAppointmentRequest.class))).thenReturn(sample());
         String body = """
                 {"name":"meeting","template":"ALL","confirmedTime":"2030-01-01T19:00:00+09:00",
                  "confirmedPlace":{"name":"Seoul"}}
                 """;
-        mvc.perform(post("/api/v1/appointments")
+        mvc.perform(post("/api/v1/rooms/demo-room/appointments")
                         .requestAttr(AuthInterceptor.USER_ID_ATTRIBUTE, USER_ID)
                         .contentType(MediaType.APPLICATION_JSON).content(body))
                 .andExpect(status().isCreated())
@@ -63,13 +63,13 @@ class AppointmentControllerTests {
 
     @Test
     void invalidCreateRequestDoesNotCallService() throws Exception {
-        mvc.perform(post("/api/v1/appointments")
+        mvc.perform(post("/api/v1/rooms/demo-room/appointments")
                         .requestAttr(AuthInterceptor.USER_ID_ATTRIBUTE, USER_ID)
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("{\"name\":\"\",\"template\":\"ALL\"}"))
                 .andExpect(status().isBadRequest())
                 .andExpect(jsonPath("$.code").value("VALIDATION_ERROR"));
-        verify(service, never()).create(any(), any());
+        verify(service, never()).create(any(), any(), any());
     }
 
     @Test

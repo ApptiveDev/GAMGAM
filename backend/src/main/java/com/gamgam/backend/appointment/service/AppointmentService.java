@@ -23,6 +23,7 @@ import com.gamgam.backend.appointment.vo.RewardRule;
 import com.gamgam.backend.global.exception.BusinessException;
 import com.gamgam.backend.global.exception.ErrorCode;
 import com.gamgam.backend.global.util.KstTimeConverter;
+import com.gamgam.backend.room.RoomAccess;
 import com.gamgam.backend.user.entity.User;
 import com.gamgam.backend.user.repository.UserRepository;
 import java.util.ArrayList;
@@ -47,9 +48,12 @@ public class AppointmentService {
     private final PenaltyAgreementRepository penaltyAgreementRepository;
     private final UserRepository userRepository;
     private final ShareLinkGenerator shareLinkGenerator;
+    private final RoomAccess rooms;
 
     @Transactional
-    public AppointmentResponse create(String userId, CreateAppointmentRequest request) {
+    public AppointmentResponse create(String roomId, String userId, CreateAppointmentRequest request) {
+        if (roomId == null || roomId.isBlank()) throw new BusinessException(ErrorCode.BAD_REQUEST);
+        rooms.requireMember(roomId, userId);
         User host = findUser(userId);
         Place confirmedPlace = request.confirmedPlace() == null ? null : request.confirmedPlace().toDomain();
         PenaltyRule penalty = request.penalty() == null ? null : request.penalty().toDomain();
@@ -62,6 +66,7 @@ public class AppointmentService {
         Appointment appointment = repository.save(Appointment.builder()
                 .id(UUID.randomUUID().toString())
                 .name(request.name().trim())
+                .roomId(roomId)
                 .hostId(userId)
                 .inviteCode(generateInviteCode())
                 .template(request.template())
@@ -80,11 +85,18 @@ public class AppointmentService {
     }
 
     public AppointmentResponse get(String userId, String id) {
-        return toResponse(findAccessible(userId, id));
+        Appointment appointment = findAccessible(userId, id);
+        rooms.requireMember(appointment.getRoomId(), userId);
+        return toResponse(appointment);
     }
 
     public List<AppointmentResponse> list(String userId) {
         return repository.findAllForUser(userId).stream().map(this::toResponse).toList();
+    }
+
+    public List<AppointmentResponse> list(String roomId, String userId) {
+        rooms.requireMember(roomId, userId);
+        return repository.findAllForUserInRoom(roomId, userId).stream().map(this::toResponse).toList();
     }
 
     @Transactional

@@ -36,7 +36,7 @@ class RoomMapServiceTests {
 
     private Appointment activeAppointment() {
         return Appointment.builder()
-                .id("room-1").name("meeting").hostId("user-1").inviteCode("ABCDEFGH")
+                .id("room-1").name("meeting").roomId("demo-room").hostId("user-1").inviteCode("ABCDEFGH")
                 .template(AppointmentTemplate.ALL)
                 .confirmedTime(OffsetDateTime.now())
                 .locationSharing(new LocationSharingPolicy(30, 30))

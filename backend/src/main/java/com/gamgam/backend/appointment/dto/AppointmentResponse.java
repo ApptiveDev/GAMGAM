@@ -16,6 +16,7 @@ import java.util.Map;
 
 public record AppointmentResponse(
         String id,
+        String roomId,
         String name,
         AppointmentTemplate template,
         List<OffsetDateTime> candidatesTime,
@@ -40,7 +41,7 @@ public record AppointmentResponse(
                                List<Place> candidatesPlace, Place confirmedPlace,
                                PenaltyRule penalty, RewardRule reward, LocationSharingPolicy locationSharing,
                                AppointmentStatus status, String shareUrl, Instant createdAt) {
-        this(id, name, template, candidatesTime, confirmedTime, candidatesPlace, confirmedPlace,
+        this(id, null, name, template, candidatesTime, confirmedTime, candidatesPlace, confirmedPlace,
                 penalty, reward, locationSharing, status, shareUrl, createdAt,
                 null, null, List.of(), Map.of(), Map.of(), List.of());
     }
@@ -48,6 +49,7 @@ public record AppointmentResponse(
     public static AppointmentResponse of(Appointment appointment, String shareUrl) {
         return new AppointmentResponse(
                 appointment.getId(),
+                appointment.getRoomId(),
                 appointment.getName(),
                 appointment.getTemplate(),
                 // 시간 필드(candidatesTime, confirmedTime)는 DB엔 UTC로 저장돼 있고, 이 응답 DTO로 변환되는 시점에 KST(+09:00)로 바뀐다.
@@ -70,7 +72,7 @@ public record AppointmentResponse(
                                          Map<Integer, List<String>> placeVotes,
                                          List<String> penaltyAgreedUserIds) {
         AppointmentResponse base = of(appointment, shareUrl);
-        return new AppointmentResponse(base.id, base.name, base.template, base.candidatesTime,
+        return new AppointmentResponse(base.id, base.roomId, base.name, base.template, base.candidatesTime,
                 base.confirmedTime, base.candidatesPlace, base.confirmedPlace, base.penalty, base.reward,
                 base.locationSharing, base.status, base.shareUrl, base.createdAt,
                 base.hostId, base.inviteCode, members, timeVotes, placeVotes, penaltyAgreedUserIds);

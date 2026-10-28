@@ -27,6 +27,7 @@ public class MockAppointmentData {
             repository.saveAll(List.of(
                     Appointment.builder()
                             .id("a-hongdae")
+                            .roomId("demo-room")
                             .hostId("u-yeeun")
                             .inviteCode("HONGDAE")
                             .name("홍대 저녁 모임")
@@ -38,6 +39,7 @@ public class MockAppointmentData {
                             .build(),
                     Appointment.builder()
                             .id("a-seongsu")
+                            .roomId("demo-room")
                             .hostId("u-seoa")
                             .inviteCode("SEONGSU")
                             .name("성수 브런치")
