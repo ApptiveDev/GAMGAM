@@ -53,9 +53,9 @@ class AppointmentVotingReadTests {
         votes.save(new AppointmentVote(appointment, "u-doyun", VoteType.PLACE, 1));
         participants.save(new AppointmentParticipant(appointment, "u-yeeun"));
         participants.save(new AppointmentParticipant(appointment, "u-doyun"));
-        var flexible = new AppointmentParticipant(appointment, "u-seoa");
-        flexible.setRegardlessOfTimeAndPlace(true);
-        participants.save(flexible);
+        var regardless = new AppointmentParticipant(appointment, "u-seoa");
+        regardless.setRegardlessOfTimeAndPlace(true);
+        participants.save(regardless);
         var otherId = service.create("demo-room", "u-yeeun", both()).id();
         votes.save(new AppointmentVote(appointments.findById(otherId).orElseThrow(),
                 "u-harin", VoteType.TIME, 0));

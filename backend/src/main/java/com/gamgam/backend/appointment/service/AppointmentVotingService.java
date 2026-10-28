@@ -58,17 +58,32 @@ public class AppointmentVotingService {
         votes.deleteSelection(id, userId, type);
         votes.saveAll(new TreeSet<>(indexes).stream()
                 .map(index -> new AppointmentVote(appointment, userId, type, index)).toList());
-        synchronizeParticipation(appointment, userId);
+        synchronizeParticipation(appointment, userId, indexes.isEmpty() ? null : false);
         return response(appointment, userId);
     }
 
-    private void synchronizeParticipation(Appointment appointment, String userId) {
-        var participant = participants.findByAppointmentIdAndUserId(appointment.getId(), userId);
-        boolean hasVotes = votes.existsByAppointmentIdAndUserId(appointment.getId(), userId);
-        if (hasVotes && participant.isEmpty()) {
-            participants.save(new AppointmentParticipant(appointment, userId));
-        } else if (!hasVotes) {
-            participant.ifPresent(participants::delete);
+    @Transactional
+    public AppointmentVotingResponse participateRegardless(String id, String userId, boolean selected) {
+        Appointment appointment = load(id, userId, true);
+        requireCoordinating(appointment);
+        if (selected) {
+            // 특정 후보 선택과 배타적이다. 전환과 참여자 갱신을 하나의 트랜잭션에서 처리한다.
+            votes.deleteSelection(id, userId, VoteType.TIME);
+            votes.deleteSelection(id, userId, VoteType.PLACE);
+        }
+        synchronizeParticipation(appointment, userId, selected);
+        return response(appointment, userId);
+    }
+
+    private void synchronizeParticipation(Appointment appointment, String userId, Boolean regardless) {
+        var participant = participants.findByAppointmentIdAndUserId(appointment.getId(), userId)
+                .orElseGet(() -> new AppointmentParticipant(appointment, userId));
+        if (regardless != null) participant.setRegardlessOfTimeAndPlace(regardless);
+        if (participant.isRegardlessOfTimeAndPlace()
+                || votes.existsByAppointmentIdAndUserId(appointment.getId(), userId)) {
+            if (participant.getId() == null) participants.save(participant);
+        } else if (participant.getId() != null) {
+            participants.delete(participant);
         }
     }
 

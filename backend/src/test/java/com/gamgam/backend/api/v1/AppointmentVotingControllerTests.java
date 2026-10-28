@@ -45,6 +45,19 @@ class AppointmentVotingControllerTests {
     }
 
     @Test
+    void 상관없이_참여와_취소가_후보_투표없이_가능하다() throws Exception {
+        mvc.perform(put(base + "/votes/regardless").contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"selected\":true}"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.participatingRegardless").value(true))
+                .andExpect(jsonPath("$.data.regardlessParticipantIds[0]").value("u-yeeun"));
+        mvc.perform(put(base + "/votes/regardless").contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"selected\":false}"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.participating").value(false));
+    }
+
+    @Test
     void 누락_null_음수_투표는_400이다() throws Exception {
         for (String type : new String[]{"time", "place"}) {
             for (String body : new String[]{"{}", "{\"optionIndexes\":null}",
@@ -54,6 +67,8 @@ class AppointmentVotingControllerTests {
                         .andExpect(jsonPath("$.code").value("VALIDATION_ERROR"));
             }
         }
+        mvc.perform(put(base + "/votes/regardless").contentType(MediaType.APPLICATION_JSON).content("{}"))
+                .andExpect(status().isBadRequest());
     }
 
     @Test

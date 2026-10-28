@@ -77,25 +77,58 @@ class AppointmentVotingServiceTests {
     }
 
     @Test
-    void 잘못된_후보는_기존_투표를_변경하지_않는다() {
-        service.voteTime(id, USER, Set.of(0));
-        error(() -> service.voteTime(id, USER, Set.of(1, 9)), ErrorCode.INVALID_OPTION);
-        assertThat(service.get(id, USER).timeOptions().get(0).votedByMe()).isTrue();
+    void 상관없이_참여는_시간과_장소_표를_모두_지우고_신청한다() {
+        service.voteTime(id, USER, Set.of(0, 1));
+        service.votePlace(id, USER, Set.of(0, 1));
+        service.voteTime(id, OTHER, Set.of(0));
+        var response = service.participateRegardless(id, USER, true);
+        assertThat(response.participating()).isTrue();
+        assertThat(response.participatingRegardless()).isTrue();
+        assertThat(response.regardlessParticipantIds()).containsExactly(USER);
+        assertThat(response.timeOptions()).noneMatch(AppointmentVotingResponse.TimeOption::votedByMe);
+        assertThat(response.placeOptions()).allMatch(option -> option.voteCount() == 0);
+        assertThat(response.timeOptions().get(0).voterIds()).containsExactly(OTHER);
+        assertThat(service.participateRegardless(id, USER, true).participantIds()).hasSize(2);
+        assertThat(service.participateRegardless(id, USER, false).participantIds()).containsExactly(OTHER);
     }
 
     @Test
-    void 방_멤버가_아니면_조회_투표을_할_수_없다() {
+    void 상관없이_참여에서_후보를_선택하면_후보_투표로_전환된다() {
+        service.participateRegardless(id, USER, true);
+        // 이미 비어 있는 후보 표의 취소는 상관없이 참여 선택을 해제하지 않는다.
+        assertThat(service.voteTime(id, USER, Set.of()).participatingRegardless()).isTrue();
+        var response = service.votePlace(id, USER, Set.of(0, 1));
+        assertThat(response.participating()).isTrue();
+        assertThat(response.participatingRegardless()).isFalse();
+        assertThat(response.regardlessParticipantIds()).isEmpty();
+        assertThat(response.placeOptions()).allMatch(AppointmentVotingResponse.PlaceOption::votedByMe);
+    }
+
+    @Test
+    void 잘못된_후보는_기존_투표와_상관없이_참여를_변경하지_않는다() {
+        service.voteTime(id, USER, Set.of(0));
+        error(() -> service.voteTime(id, USER, Set.of(1, 9)), ErrorCode.INVALID_OPTION);
+        assertThat(service.get(id, USER).timeOptions().get(0).votedByMe()).isTrue();
+        service.participateRegardless(id, USER, true);
+        error(() -> service.votePlace(id, USER, Set.of(-1)), ErrorCode.INVALID_OPTION);
+        assertThat(service.get(id, USER).participatingRegardless()).isTrue();
+    }
+
+    @Test
+    void 방_멤버가_아니면_조회_투표_신청을_할_수_없다() {
         error(() -> service.get(id, "outsider"), ErrorCode.ROOM_ACCESS_DENIED);
         error(() -> service.voteTime(id, "outsider", Set.of(0)), ErrorCode.ROOM_ACCESS_DENIED);
         error(() -> service.votePlace(id, "outsider", Set.of(0)), ErrorCode.ROOM_ACCESS_DENIED);
+        error(() -> service.participateRegardless(id, "outsider", true), ErrorCode.ROOM_ACCESS_DENIED);
         error(() -> appointments.create("demo-room", "outsider", both()), ErrorCode.ROOM_ACCESS_DENIED);
     }
 
     @Test
-    void 확정된_약속은_투표을_변경할_수_없다() {
+    void 확정된_약속은_투표_신청을_변경할_수_없다() {
         String confirmed = appointments.create("demo-room", USER, all()).id();
         error(() -> service.voteTime(confirmed, USER, Set.of(0)), ErrorCode.NOT_COORDINATING);
         error(() -> service.votePlace(confirmed, USER, Set.of()), ErrorCode.NOT_COORDINATING);
+        error(() -> service.participateRegardless(confirmed, USER, true), ErrorCode.NOT_COORDINATING);
     }
 
     @Test
@@ -115,6 +148,16 @@ class AppointmentVotingServiceTests {
         var result = service.get(id, USER);
         assertThat(result.placeOptions().stream().filter(AppointmentVotingResponse.PlaceOption::votedByMe)).hasSize(1);
         assertThat(result.participantIds()).containsExactly(USER);
+    }
+
+    @Test
+    void 상관없이_참여와_후보_투표가_겹쳐도_둘이_동시에_남지_않는다() throws Exception {
+        parallel(List.of(
+                () -> service.participateRegardless(id, USER, true),
+                () -> service.voteTime(id, USER, Set.of(0))));
+        var result = service.get(id, USER);
+        assertThat(result.participantIds()).containsExactly(USER);
+        assertThat(result.participatingRegardless() ^ result.timeOptions().get(0).votedByMe()).isTrue();
     }
 
     private static void error(ThrowingCallable action, ErrorCode expected) {
