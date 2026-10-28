@@ -33,6 +33,7 @@ flutter:
     - assets/images/appointments/
     - assets/images/profiles/
     - assets/images/places/
+    - assets/icons/live_map/
 
   fonts:
     - family: Pretendard
