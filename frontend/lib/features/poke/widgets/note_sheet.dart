@@ -11,7 +11,7 @@ enum NoteTab { card, text, emoji }
 
 /// 쪽지 화면 하단 패널. 닫혀 있으면 탭 카드만, 탭을 누르면 그 탭의 시트가 올라온다.
 class NoteSheet extends StatelessWidget {
-  const NoteSheet({super.key, required this.tab, required this.onTab, required this.onClose, this.expanded = false, this.child});
+  const NoteSheet({super.key, required this.tab, required this.onTab, required this.onClose, this.onSwipe, this.expanded = false, this.child});
 
   /// 디자인 기준 높이 (손잡이 3 + 간격 6 + 패널).
   static const closedHeight = 126.0;
@@ -21,6 +21,9 @@ class NoteSheet extends StatelessWidget {
   final NoteTab? tab;
   final ValueChanged<NoteTab> onTab;
   final VoidCallback onClose;
+
+  /// 손잡이·탭 쪽을 위(true)나 아래(false)로 밀었을 때.
+  final ValueChanged<bool>? onSwipe;
 
   /// 이모지 시트를 끝까지 올린 상태.
   final bool expanded;
@@ -35,8 +38,17 @@ class NoteSheet extends StatelessWidget {
       curve: Curves.easeOutCubic,
       height: (open ? (expanded ? expandedHeight : openHeight) : closedHeight) + bottom,
       child: Column(children: [
-        SvgPicture.asset('${PokeStyle.assets}/icons/${open ? 'handle' : 'handle_closed'}.svg', width: 33, height: 3),
-        const SizedBox(height: 6),
+        GestureDetector(
+          behavior: HitTestBehavior.opaque,
+          onVerticalDragEnd: (d) => onSwipe?.call((d.primaryVelocity ?? 0) < 0),
+          child: SizedBox(
+            width: double.infinity,
+            child: Column(children: [
+              SvgPicture.asset('${PokeStyle.assets}/icons/${open ? 'handle' : 'handle_closed'}.svg', width: 33, height: 3),
+              const SizedBox(height: 6),
+            ]),
+          ),
+        ),
         Expanded(
           child: Container(
             decoration: const BoxDecoration(
@@ -47,7 +59,10 @@ class NoteSheet extends StatelessWidget {
             child: Stack(children: [
               const Positioned.fill(child: DotBackground(topFade: [0.275, 0.356], bottomFade: [0.903, 0.981], shade: false)),
               Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
-                Padding(padding: const EdgeInsets.all(12), child: _TabBar(selected: tab, onTab: onTab)),
+                GestureDetector(
+                  onVerticalDragEnd: (d) => onSwipe?.call((d.primaryVelocity ?? 0) < 0),
+                  child: Padding(padding: const EdgeInsets.all(12), child: _TabBar(selected: tab, onTab: onTab)),
+                ),
                 if (open && child != null) Expanded(child: child!),
               ]),
               if (open)
@@ -286,6 +301,49 @@ class _PhraseTile extends StatelessWidget {
               boxShadow: const [BoxShadow(color: Color(0x33212121), blurRadius: 4)],
             ),
             child: ExcludeSemantics(child: Text(phrase, textAlign: TextAlign.center, style: PokeStyle.note(PokeStyle.text))),
+          ),
+        ),
+      );
+}
+
+/// 이모지 시트: 스티커 12종, 3열. 사진처럼 하나씩 기울어져 있다 (피그마 917:3294).
+class EmojiPicker extends StatelessWidget {
+  const EmojiPicker({super.key, required this.onPick});
+
+  final ValueChanged<NoteSticker> onPick;
+
+  static const _tilts = [-19.9, 31.96, 37.68, 16.19, -21.47, 18.79, -40.23, 17.13, -36.99, 0.0, 22.65, -16.24];
+
+  @override
+  Widget build(BuildContext context) => SingleChildScrollView(
+        padding: const EdgeInsets.only(top: 29, bottom: 90),
+        child: Center(
+          // 3열 = 103 × 3
+          child: SizedBox(
+            width: 309,
+            child: Wrap(
+              runSpacing: 6,
+              children: [
+                for (final (i, sticker) in NoteSticker.values.indexed)
+                  Semantics(
+                    button: true,
+                    label: sticker.label,
+                    child: GestureDetector(
+                      behavior: HitTestBehavior.opaque,
+                      onTap: () => onPick(sticker),
+                      child: SizedBox.square(
+                        dimension: 103,
+                        child: Center(
+                          child: Transform.rotate(
+                            angle: _tilts[i] * math.pi / 180,
+                            child: StickerImage(PokeStyle.sticker(sticker), size: 86, shadowBlur: 8.24),
+                          ),
+                        ),
+                      ),
+                    ),
+                  ),
+              ],
+            ),
           ),
         ),
       );

@@ -7,6 +7,7 @@ import '../../data/models/poke_note.dart';
 import 'widgets/note_card.dart';
 import 'widgets/note_sheet.dart';
 import 'widgets/poke_style.dart';
+import 'widgets/sticker_layer.dart';
 
 /// 08 · 콕 찌르기 (보내는 쪽) — 쪽지 꾸미기. 보내면 꾸민 쪽지를, 닫으면 null을 돌려준다.
 Future<PokeNote?> showPokeNotePage(BuildContext context) =>
@@ -23,8 +24,57 @@ class _PokeNotePageState extends State<PokeNotePage> {
   PokeNote _note = const PokeNote();
   NoteTab? _tab;
 
-  void _toggle(NoteTab tab) => setState(() => _tab = _tab == tab ? null : tab);
-  void _close() => setState(() => _tab = null);
+  /// 이모지 시트를 끝까지 올렸는지.
+  bool _expanded = false;
+
+  /// 고치고 있는 스티커. 빈 곳을 누르면 풀린다.
+  int? _selected;
+  int _nextStickerId = 0;
+
+  void _toggle(NoteTab tab) => setState(() {
+        _tab = _tab == tab ? null : tab;
+        _expanded = false;
+        _selected = null;
+      });
+
+  void _close() => setState(() {
+        _tab = null;
+        _expanded = false;
+      });
+
+  /// 위로 밀면 이모지 시트는 끝까지 펼치고, 아래로 밀면 한 단계씩 내린다.
+  void _swipe(bool up) {
+    if (up) {
+      if (_tab == NoteTab.emoji) setState(() => _expanded = true);
+    } else if (_expanded) {
+      setState(() => _expanded = false);
+    } else if (_tab != null) {
+      _close();
+    }
+  }
+
+  static const _stickerSpots = [(0.74, 0.74), (0.26, 0.74), (0.74, 0.26), (0.26, 0.26)];
+
+  void _pickSticker(NoteSticker sticker) => setState(() {
+        // 가운데 문구를 가리지 않게 네 귀퉁이를 돌아가며 붙인다.
+        final (dx, dy) = _stickerSpots[_note.stickers.length % _stickerSpots.length];
+        final placed = PlacedSticker(id: _nextStickerId++, sticker: sticker, dx: dx, dy: dy, scale: stickerInitialScale);
+        _note = _note.copyWith(stickers: [..._note.stickers, placed]);
+        _selected = placed.id;
+        _close();
+      });
+
+  void _updateSticker(PlacedSticker changed) =>
+      setState(() => _note = _note.copyWith(stickers: [for (final s in _note.stickers) s.id == changed.id ? changed : s]));
+
+  void _deleteSticker(int id) => setState(() {
+        _note = _note.copyWith(stickers: _note.stickers.where((s) => s.id != id).toList());
+        _selected = null;
+      });
+
+  void _deselect() {
+    if (_selected != null) setState(() => _selected = null);
+  }
 
   void _pickCard(NoteCard card) => setState(() {
         _note = _note.copyWith(card: card);
@@ -40,11 +90,12 @@ class _PokeNotePageState extends State<PokeNotePage> {
   Widget build(BuildContext context) {
     final top = MediaQuery.paddingOf(context).top;
     final open = _tab != null;
+    final cardOrigin = Offset((MediaQuery.sizeOf(context).width - NoteCardView.designSize) / 2, top + 147);
 
     return Scaffold(
       backgroundColor: Colors.white,
       body: Stack(children: [
-        const Positioned.fill(child: DotBackground()),
+        Positioned.fill(child: GestureDetector(onTap: _deselect, child: const DotBackground())),
         // 상단은 흰색에서 투명으로.
         Positioned(
           left: 0,
@@ -63,10 +114,10 @@ class _PokeNotePageState extends State<PokeNotePage> {
           ),
         ),
         Positioned(
-          top: top + 147,
-          left: 0,
-          right: 0,
-          child: Center(
+          left: cardOrigin.dx,
+          top: cardOrigin.dy,
+          child: GestureDetector(
+            onTap: _deselect,
             child: DecoratedBox(
               decoration: BoxDecoration(
                 borderRadius: BorderRadius.circular(NoteCardView.radius),
@@ -74,6 +125,16 @@ class _PokeNotePageState extends State<PokeNotePage> {
               ),
               child: NoteCardView(card: _note.card, text: _note.text),
             ),
+          ),
+        ),
+        Positioned.fill(
+          child: StickerEditor(
+            origin: cardOrigin,
+            stickers: _note.stickers,
+            selectedId: _selected,
+            onSelect: (id) => setState(() => _selected = id),
+            onChanged: _updateSticker,
+            onDelete: _deleteSticker,
           ),
         ),
         Positioned(left: 0, right: 0, top: top, child: _TopBar(canSend: _note.canSend, onSend: () => Navigator.pop(context, _note))),
@@ -96,10 +157,13 @@ class _PokeNotePageState extends State<PokeNotePage> {
             tab: _tab,
             onTab: _toggle,
             onClose: _close,
+            onSwipe: _swipe,
+            expanded: _expanded,
             child: switch (_tab) {
               NoteTab.card => CardPicker(onPick: _pickCard),
               NoteTab.text => PhrasePicker(onPick: _pickPhrase),
-              NoteTab.emoji || null => null,
+              NoteTab.emoji => EmojiPicker(onPick: _pickSticker),
+              null => null,
             },
           ),
         ),

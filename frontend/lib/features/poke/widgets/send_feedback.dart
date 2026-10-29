@@ -4,6 +4,7 @@ import 'package:flutter_svg/flutter_svg.dart';
 import '../../../data/models/poke_note.dart';
 import 'note_card.dart';
 import 'poke_style.dart';
+import 'sticker_layer.dart';
 
 const _panel = Color(0xFF5E626A);
 
@@ -111,7 +112,7 @@ class SentToast extends StatelessWidget {
       );
 }
 
-/// "콕 찌르기 보기": 방금 보낸 쪽지를 크게 보여준다. 피그마에 화면이 없어서 쪽지 화면과 같은 카드만 띄운다.
+/// "콕 찌르기 보기": 방금 보낸 쪽지를 크게 보여준다. 피그마에 화면이 없어서 쪽지 화면과 같은 카드·스티커만 띄운다.
 Future<void> showSentNote(BuildContext context, PokeNote note) => showDialog<void>(
       context: context,
       barrierColor: const Color(0x66212121),
@@ -123,7 +124,7 @@ Future<void> showSentNote(BuildContext context, PokeNote note) => showDialog<voi
               borderRadius: BorderRadius.circular(NoteCardView.radius),
               boxShadow: const [BoxShadow(color: Color(0x4D212121), blurRadius: 7)],
             ),
-            child: NoteCardView(card: note.card, text: note.text, placeholder: false),
+            child: PokeNoteView(note: note, placeholder: false),
           ),
         ),
       ),
