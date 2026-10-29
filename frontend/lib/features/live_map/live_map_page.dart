@@ -14,6 +14,9 @@ import '../../data/models/appointment.dart';
 import '../../data/models/live_location.dart';
 import '../../data/repositories/appointment_repository.dart';
 import '../../data/repositories/live_location_repository.dart';
+import '../../data/models/poke_note.dart';
+import '../poke/poke_note_page.dart';
+import '../poke/widgets/send_feedback.dart';
 import 'widgets/live_map_view.dart';
 import 'widgets/live_text.dart';
 import 'widgets/map_header.dart';
@@ -21,7 +24,6 @@ import 'widgets/map_markers.dart';
 import 'widgets/participant_sheet.dart';
 import 'widgets/person_card.dart';
 import 'widgets/poke_banner.dart';
-import 'widgets/poke_sheet.dart';
 
 /// 07 · 당일 지도 【핵심】 + 08 · 콕 찌르기.
 /// 지도가 주인공. 출발 전·공유 꺼짐은 지도 밖 칩으로 담백하게 처리한다.
@@ -34,7 +36,7 @@ class LiveMapPage extends StatefulWidget {
   State<LiveMapPage> createState() => _LiveMapPageState();
 }
 
-class _LiveMapPageState extends State<LiveMapPage> {
+class _LiveMapPageState extends State<LiveMapPage> with SingleTickerProviderStateMixin {
   late final LiveLocationRepository _live = context.read<LiveLocationRepository>();
   StreamSubscription<LiveEvent>? _events;
   Timer? _clock;
@@ -47,6 +49,16 @@ class _LiveMapPageState extends State<LiveMapPage> {
 
   /// 상태 메시지. 저장·편집이 붙기 전까지는 약속 상세와 같은 목업을 보여준다.
   static const _statusMessages = MockData.statusMessages;
+
+  /// 보내기를 누른 뒤 "완료하는 중" 동안 기다리는 쪽지. 막대가 다 차면 보내고, 취소하면 버린다.
+  static const _undoWindow = Duration(seconds: 3);
+  late final _sendProgress = AnimationController(vsync: this, duration: _undoWindow)..addStatusListener(_onSendProgress);
+  (LiveParticipant, PokeNote)? _pending;
+
+  /// 방금 보낸 쪽지. 상단 안내에서 "콕 찌르기 보기"로 다시 본다.
+  PokeNote? _sent;
+  bool _sentExpanded = false;
+  Timer? _sentTimer;
 
   @override
   void initState() {
@@ -65,6 +77,10 @@ class _LiveMapPageState extends State<LiveMapPage> {
 
   @override
   void dispose() {
+    // 완료하는 중에 지도를 나가면 그대로 보낸다.
+    if (_pending case (final target, final note)) _live.poke(widget.appointmentId, target.id, note);
+    _sendProgress.dispose();
+    _sentTimer?.cancel();
     _events?.cancel();
     _clock?.cancel();
     _live.stop(widget.appointmentId);
@@ -94,15 +110,55 @@ class _LiveMapPageState extends State<LiveMapPage> {
   }
 
   Future<void> _poke(LiveParticipant target) async {
-    final message = await showPokeSheet(context, target);
-    if (message == null || !mounted) return;
-    // 시트를 열어둔 사이에 도착했을 수 있다.
+    final note = await showPokeNotePage(context);
+    if (note == null || !mounted) return;
+    // 앞에서 기다리던 쪽지가 있으면 먼저 보낸다.
+    if (_pending != null) _commitSend();
+    setState(() => _pending = (target, note));
+    _sendProgress.forward(from: 0);
+  }
+
+  void _onSendProgress(AnimationStatus status) {
+    if (status == AnimationStatus.completed && _pending != null) _commitSend();
+  }
+
+  void _cancelSend() {
+    _sendProgress.stop();
+    setState(() => _pending = null);
+  }
+
+  void _commitSend() {
+    final (target, note) = _pending!;
+    _pending = null;
+    _sendProgress.stop();
+    // 쪽지를 꾸미는 사이에 도착했을 수 있다.
     if (_live.session(widget.appointmentId)?.byId(target.id)?.arrived ?? false) {
+      setState(() {});
       _toast('${target.participant.name}님은 이미 도착했어요');
       return;
     }
-    _live.poke(widget.appointmentId, target.id, message);
-    _toast('${target.participant.name}에게 "${message.label}"를 보냈어요');
+    _live.poke(widget.appointmentId, target.id, note);
+    _sentTimer?.cancel();
+    setState(() {
+      _sent = note;
+      _sentExpanded = false;
+    });
+    // 잠시 뒤 "콕 찌르기 보기"가 펼쳐지고, 조금 더 있다가 사라진다.
+    _sentTimer = Timer(const Duration(milliseconds: 700), () {
+      if (!mounted) return;
+      setState(() => _sentExpanded = true);
+      _sentTimer = Timer(const Duration(seconds: 4), () {
+        if (mounted) setState(() => _sent = null);
+      });
+    });
+  }
+
+  void _viewSent() {
+    final note = _sent;
+    if (note == null) return;
+    _sentTimer?.cancel();
+    setState(() => _sent = null);
+    showSentNote(context, note);
   }
 
   void _reply(PokeReply reply) {
@@ -192,6 +248,20 @@ class _LiveMapPageState extends State<LiveMapPage> {
                 onClose: () => setState(() => _incoming = null),
               ),
             ),
+          ),
+        if (_pending != null)
+          Positioned(
+            left: 20,
+            right: 20,
+            bottom: 20 + MediaQuery.paddingOf(context).bottom,
+            child: SendingBar(progress: _sendProgress, onCancel: _cancelSend),
+          ),
+        if (_sent != null)
+          Positioned(
+            left: 20,
+            right: 20,
+            top: MediaQuery.paddingOf(context).top + 22,
+            child: Center(child: SentToast(expanded: _sentExpanded, onView: _viewSent)),
           ),
       ]),
     );

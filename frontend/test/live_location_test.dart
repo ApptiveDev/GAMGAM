@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:gamgam/app.dart';
 import 'package:gamgam/data/models/live_location.dart';
+import 'package:gamgam/data/models/poke_note.dart';
 import 'package:gamgam/data/repositories/mock_appointment_repository.dart';
 import 'package:gamgam/data/repositories/mock_live_location_repository.dart';
 import 'package:gamgam/features/live_map/widgets/person_card.dart';
@@ -53,17 +54,30 @@ void main() {
     await tester.pump();
     await tester.tap(pokeDoyun);
     await tester.pumpAndSettle();
-    expect(find.text('도윤에게 콕 찌르기'), findsOneWidget);
-    await tester.tap(find.text('빨리와'));
-    await advance(tester);
+
+    // 쪽지 꾸미기 — 문구를 고르면 보내기가 생긴다.
+    expect(find.text('보내기'), findsNothing);
+    await tester.tap(find.bySemanticsLabel('문구'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.bySemanticsLabel('어디쯤이야?'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('보내기'));
+    // pumpAndSettle은 "완료하는 중" 막대가 끝날 때까지 기다리므로 화면 전환만큼만 흘린다.
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 500));
+
+    // "완료하는 중" 동안은 아직 안 보냈고, 막대가 다 차면 보낸다.
+    expect(find.text('완료하는 중'), findsOneWidget);
+    expect(live.pokeCooldownOf('a-hongdae', 'u-doyun'), Duration.zero);
+    await advance(tester, seconds: 4);
+    expect(find.text('콕 찌르기를 전송했습니다'), findsOneWidget);
     expect(live.pokeCooldownOf('a-hongdae', 'u-doyun'), greaterThan(const Duration(minutes: 4)));
 
     // 08 받는 쪽 — 친구가 나를 콕 찌르면 배너에서 바로 답장.
-    await advance(tester, seconds: 2);
-    expect(find.textContaining('님이 콕 찔렀어요 — 빨리와!'), findsOneWidget);
+    expect(find.textContaining('님이 콕 찔렀어요'), findsOneWidget);
     await tester.tap(find.text('5분 뒤 도착'));
     await advance(tester);
-    expect(find.textContaining('님이 콕 찔렀어요 — 빨리와!'), findsNothing);
+    expect(find.textContaining('님이 콕 찔렀어요'), findsNothing);
 
     // 1초 = 1분. 약 1분 뒤 모두 도착하면 09로 넘어간다.
     await advance(tester, seconds: 60);
@@ -144,6 +158,28 @@ void main() {
     expect(find.text('약속까지').hitTestable(), findsOneWidget);
   });
 
+  testWidgets('쪽지를 보낸 뒤 "완료하는 중"에 취소하면 보내지 않는다', (tester) async {
+    final live = await openFrozenMap(tester);
+    final pokeDoyun = find.descendant(of: find.ancestor(of: find.text('도윤'), matching: find.byType(Row)), matching: find.text('콕 찌르기')).first;
+    await tester.ensureVisible(pokeDoyun);
+    await tester.pump();
+    await tester.tap(pokeDoyun);
+    await tester.pumpAndSettle();
+    await tester.tap(find.bySemanticsLabel('문구'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.bySemanticsLabel('어디쯤이야?'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('보내기'));
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 500));
+
+    await tester.tap(find.text('취소'));
+    await advance(tester, seconds: 4);
+    expect(find.text('완료하는 중'), findsNothing);
+    expect(find.text('콕 찌르기를 전송했습니다'), findsNothing);
+    expect(live.pokeCooldownOf('a-hongdae', 'u-doyun'), Duration.zero);
+  });
+
   test('이미 도착한 사람에게는 콕 찌르기가 가지 않는다', () async {
     final repo = MockAppointmentRepository();
     final live = MockLiveLocationRepository(meId: repo.me.id, tick: _tick);
@@ -153,7 +189,7 @@ void main() {
 
     // 서아는 시작할 때 이미 도착해 있다.
     final before = live.session('a-hongdae')!.totalPokes;
-    await live.poke('a-hongdae', 'u-seoa', PokeMessage.hurry);
+    await live.poke('a-hongdae', 'u-seoa', const PokeNote(text: '어디쯤이야?'));
     expect(live.pokeCooldownOf('a-hongdae', 'u-seoa'), Duration.zero);
     expect(live.session('a-hongdae')!.totalPokes, before);
   });

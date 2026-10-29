@@ -6,6 +6,7 @@ import '../models/appointment.dart';
 import '../models/geo_point.dart';
 import '../models/live_location.dart';
 import '../models/participant.dart';
+import '../models/poke_note.dart';
 import 'live_location_repository.dart';
 
 /// 와이어프레임 07~09 장면을 재현하는 시뮬레이션. 메모리에만 저장한다.
@@ -96,7 +97,7 @@ class MockLiveLocationRepository extends LiveLocationRepository {
   }
 
   @override
-  Future<void> poke(String appointmentId, String targetId, PokeMessage message) async {
+  Future<void> poke(String appointmentId, String targetId, PokeNote note) async {
     final sim = _sims[appointmentId];
     // 도착한 사람과 쿨다운 중인 사람에게는 보내지 않는다.
     if (sim == null || (sim.session.byId(targetId)?.arrived ?? true) || pokeCooldownOf(appointmentId, targetId) > Duration.zero) return;
@@ -200,7 +201,7 @@ class MockLiveLocationRepository extends LiveLocationRepository {
     if (!sim.pokedMe && from != null && me != null && !me.arrived && sim.elapsed >= 2) {
       sim.pokedMe = true;
       _countPoke(sim, _meId);
-      events.add(PokeReceived(Poke(from: from, to: me.participant, message: PokeMessage.hurry)));
+      events.add(PokeReceived(Poke(from: from, to: me.participant, note: const PokeNote(card: NoteCard.heart, text: '어디쯤이야?'))));
     }
 
     if (sim.session.allArrived) {

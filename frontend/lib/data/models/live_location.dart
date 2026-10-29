@@ -1,5 +1,6 @@
 import 'geo_point.dart';
 import 'participant.dart';
+import 'poke_note.dart';
 
 /// 06 · 방별 위치 공개 범위.
 enum ShareLevel {
@@ -94,18 +95,6 @@ class LiveParticipant {
       );
 }
 
-/// 08 · 콕 찌르기 문구.
-enum PokeMessage {
-  hurry('빨리와'),
-  waiting('기다릴게'),
-  meLate('나도 늦어'),
-  takeYourTime('천천히 와');
-
-  const PokeMessage(this.label);
-
-  final String label;
-}
-
 /// 콕 찔린 사람이 알림에서 바로 보내는 답장.
 enum PokeReply {
   fiveMinutes('5분 뒤 도착'),
@@ -120,12 +109,13 @@ enum PokeReply {
 /// 같은 사람에게 다시 콕 찌르려면 이만큼 기다려야 한다.
 const pokeCooldown = Duration(minutes: 5);
 
+/// 08 · 콕 찌르기. 꾸민 쪽지를 함께 보낸다.
 class Poke {
-  const Poke({required this.from, required this.to, required this.message});
+  const Poke({required this.from, required this.to, required this.note});
 
   final Participant from;
   final Participant to;
-  final PokeMessage message;
+  final PokeNote note;
 }
 
 /// 약속 하나의 당일 현황.

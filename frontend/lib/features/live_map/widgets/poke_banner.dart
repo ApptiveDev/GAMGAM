@@ -40,7 +40,8 @@ class PokeBanner extends StatelessWidget {
             Padding(
               padding: const EdgeInsets.only(right: 8),
               child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
-                Text('${poke.from.name}님이 콕 찔렀어요 — ${poke.message.label}!',
+                // 받는 쪽 쪽지 화면은 #17 범위 밖이라, 지금은 쪽지 문구만 한 줄로 보여준다.
+                Text(poke.note.text == null ? '${poke.from.name}님이 콕 찔렀어요' : '${poke.from.name}님이 콕 찔렀어요 — ${poke.note.text!.replaceAll('\n', ' ')}',
                     style: const TextStyle(fontSize: 15, fontWeight: FontWeight.w600, color: AppColors.textTitle, height: 1.4)),
                 const SizedBox(height: 4),
                 Text(subtitle, style: const TextStyle(fontSize: 13, color: AppColors.textSub)),
