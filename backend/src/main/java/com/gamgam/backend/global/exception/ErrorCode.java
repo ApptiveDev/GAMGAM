@@ -23,6 +23,10 @@ public enum ErrorCode {
     ROOM_NOT_FOUND(HttpStatus.NOT_FOUND, "Room not found."),
     UNAUTHENTICATED(HttpStatus.UNAUTHORIZED, "Authentication is required."),
     ROOM_INTEGRATION_UNAVAILABLE(HttpStatus.SERVICE_UNAVAILABLE, "Room membership integration is not configured."),
+    NOT_COORDINATING(HttpStatus.CONFLICT, "Appointment is not being coordinated."),
+    VOTE_NOT_ALLOWED(HttpStatus.BAD_REQUEST, "This appointment does not coordinate that item."),
+    INVALID_OPTION(HttpStatus.BAD_REQUEST, "Option does not exist."),
+    DUPLICATE_CANDIDATE(HttpStatus.CONFLICT, "Candidate already exists."),
     ROOM_ACCESS_DENIED(HttpStatus.FORBIDDEN, "You are not a member of this room.");
 
     private final HttpStatus status;

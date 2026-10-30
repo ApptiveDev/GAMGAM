@@ -158,6 +158,76 @@ Invoke-RestMethod -Uri "http://localhost:8080/api/v1/appointments/$($created.dat
 방 없이 생성하거나 전체 방의 약속을 조회하던 `POST /api/v1/appointments`, `GET /api/v1/appointments`는 제거했습니다.
 프런트엔드의 생성·목록 요청도 방 ID를 포함하는 경로로 연결해야 합니다. 방 생성·가입 API는 별도 담당 범위입니다.
 
+## 참여자 투표·후보 시간 및 장소 추가 API
+
+시간과 장소 모두 여러 후보를 선택할 수 있습니다. 방 멤버가 둘 중 하나에라도 투표하면 해당 약속의 참여자로 등록됩니다.
+시간·장소 투표를 모두 취소하면 참여 신청도 취소됩니다. 방의 다른 약속에는 영향을 주지 않습니다.
+
+`시간·장소 상관없이 참여`는 별도 선택이며 특정 후보 투표와 동시에 유지할 수 없습니다.
+
+- 상관없이 참여를 켜면 내 시간·장소 투표를 모두 취소하고 참여자로 등록합니다.
+- 상관없이 참여 상태에서 특정 후보를 선택하면 상관없이 참여가 해제되고 해당 후보 투표로 전환됩니다.
+- 상관없이 참여를 끄면, 남은 후보 투표가 없는 경우 참여 신청도 취소됩니다.
+- 이미 비어 있는 시간/장소 투표에 빈 목록을 다시 보내는 것은 상관없이 참여 선택을 해제하지 않습니다.
+- 후보 시간·장소 추가만으로는 투표나 참여 신청이 되지 않습니다.
+- 확정/종료된 약속에서는 투표·참여 신청·후보 추가를 변경할 수 없습니다.
+
+### API 목록
+
+| Method | Path | 요청 본문 / 기능 |
+| --- | --- | --- |
+| GET | `/api/v1/appointments/{id}/votes` | 후보별 득표·내 투표·약속 참여자 조회 |
+| PUT | `/api/v1/appointments/{id}/votes/time` | `{"optionIndexes":[0,1]}` |
+| PUT | `/api/v1/appointments/{id}/votes/place` | `{"optionIndexes":[0,1]}` |
+| PUT | `/api/v1/appointments/{id}/votes/regardless` | `{"selected":true}` 또는 `false` |
+| POST | `/api/v1/appointments/{id}/time-candidates` | `{"time":"2030-01-03T18:00:00+09:00"}` |
+| POST | `/api/v1/appointments/{id}/place-candidates` | `{"name":"새 카페","latitude":37.5,"longitude":127.0}` |
+
+투표 PUT은 해당 종류의 **내 선택 전체를 교체**합니다. 일부 후보만 추가하는 API가 아닙니다.
+`{"optionIndexes":[]}`로 해당 종류의 투표를 모두 취소합니다. 필드 누락, `null`, 음수 인덱스는 허용하지 않습니다.
+같은 인덱스를 반복해 보내도 한 표로 처리합니다. 다른 사용자의 표와 다른 종류의 내 표는 유지됩니다.
+
+후보 인덱스는 0부터 시작하며 기존 순서는 유지하고 새 시간·장소는 각각 목록 마지막에 추가합니다. 후보 삭제·재정렬 API는 없습니다.
+장소 이름 앞뒤 공백은 제거합니다. 대소문자·앞뒤 공백을 제외한 이름과 좌표가 모두 같으면 중복(409)으로 거부하고,
+좌표가 다른 동명 장소는 허용합니다. 이름은 필수이며 좌표는 생략하거나 위도·경도를 함께 보내야 합니다.
+
+시간 후보는 미래 시각을 오프셋과 함께 보내야 합니다. 소수점 초는 DB 정밀도에 맞춰 마이크로초 단위로 반올림합니다. UTC로 저장하고 KST로 응답하며, 오프셋이 달라도 같은 순간이면 중복(409)으로 거부합니다.
+시간 후보 추가는 `TIME_ONLY`, `BOTH`, 장소 후보 추가는 `PLACE_ONLY`, `BOTH` 템플릿에서 가능합니다.
+장소 이름만 보내면 좌표는 비어 있습니다. 서버는 이름을 좌표로 변환하지 않으며, 현재 프런트의 이름 입력에도 자동 좌표 조회가 없습니다.
+
+응답 `data`:
+
+- `appointmentId`, `roomId`, `status`
+- `participating`: 내가 이 약속에 참여 중인지
+- `participantIds`: 실제 약속 참여자의 ID 목록(방 멤버 전체가 아님)
+- `participatingRegardless`, `regardlessParticipantIds`: 상관없이 참여 선택 여부와 선택한 사용자 목록
+- `timeOptions`: `index`, `time`(KST), `voteCount`, `voterIds`, `votedByMe`
+- `placeOptions`: `index`, `place`, `voteCount`, `voterIds`, `votedByMe`
+
+상관없이 참여한 사람은 특정 후보의 득표 수에는 포함되지 않습니다.
+시간·장소가 이미 확정되어 생성되는 `ALL` 템플릿은 투표 API 대상이 아닙니다.
+
+### 로컬에서 실행해 보기
+
+```powershell
+$voteHeaders = @{ 'X-User-Id' = 'u-doyun' }
+$voteUrl = 'http://localhost:8080/api/v1/appointments/demo-hongdae'
+
+# 장소 2개 선택: 시간에 투표하지 않아도 참여 신청됨
+Invoke-RestMethod -Method Put -Uri "$voteUrl/votes/place" -Headers $voteHeaders `
+  -ContentType 'application/json' -Body '{"optionIndexes":[0,1]}'
+
+# 상관없이 참여로 전환: 위 장소 투표는 취소됨
+Invoke-RestMethod -Method Put -Uri "$voteUrl/votes/regardless" -Headers $voteHeaders `
+  -ContentType 'application/json' -Body '{"selected":true}'
+
+Invoke-RestMethod -Uri "$voteUrl/votes" -Headers $voteHeaders | ConvertTo-Json -Depth 8
+```
+
+투표 교체·참여 방식 전환·후보 추가는 약속 행의 DB 잠금을 공유하고 같은 트랜잭션에서 저장합니다.
+추후 확정/후보 변경 API도 `AppointmentRepository.findByIdForUpdate`로 같은 잠금을 획득한 뒤 상태를 확인해야 합니다.
+H2 통합 테스트에는 동시 투표 교체, 동시 후보 추가, 상관없이 참여와 특정 후보 투표의 경합을 포함합니다.
+
 ## 같은 방 참여자 지도 API
 
 `GET /api/v1/rooms/a-hongdae/map?latitude=37.5563&longitude=126.9236`

@@ -68,9 +68,9 @@ public class Appointment {
         this.hostId = hostId;
         this.inviteCode = inviteCode;
         this.template = template;
-        this.candidatesTime = candidatesTime != null ? candidatesTime : new ArrayList<>();
+        if (candidatesTime != null) this.candidatesTime.addAll(candidatesTime);
         this.confirmedTime = confirmedTime;
-        this.candidatesPlace = candidatesPlace != null ? candidatesPlace : new ArrayList<>();
+        if (candidatesPlace != null) this.candidatesPlace.addAll(candidatesPlace);
         this.confirmedPlace = confirmedPlace;
         this.penalty = penalty;
         this.reward = reward;
@@ -85,6 +85,7 @@ public class Appointment {
     }
 
     public void addCandidateTime(OffsetDateTime time) { candidatesTime.add(time); }
+    public void addCandidatePlace(Place place) { candidatesPlace.add(place); }
     public void updatePenalty(PenaltyRule penalty) { this.penalty = penalty; }
     public void complete() { status = AppointmentStatus.COMPLETED; }
 }
