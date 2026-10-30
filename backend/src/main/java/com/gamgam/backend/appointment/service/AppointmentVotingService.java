@@ -1,24 +1,25 @@
 package com.gamgam.backend.appointment.service;
 
 import com.gamgam.backend.appointment.dto.AppointmentVotingResponse;
-import com.gamgam.backend.appointment.dto.TimeCandidateRequest;
 import com.gamgam.backend.appointment.dto.CreateAppointmentRequest.PlaceRequest;
+import com.gamgam.backend.appointment.dto.TimeCandidateRequest;
 import com.gamgam.backend.appointment.entity.Appointment;
 import com.gamgam.backend.appointment.entity.AppointmentParticipant;
+import com.gamgam.backend.appointment.entity.AppointmentPlaceVote;
+import com.gamgam.backend.appointment.entity.AppointmentTimeVote;
+import com.gamgam.backend.appointment.repository.AppointmentMemberRepository;
 import com.gamgam.backend.appointment.repository.AppointmentParticipantRepository;
+import com.gamgam.backend.appointment.repository.AppointmentPlaceVoteRepository;
 import com.gamgam.backend.appointment.repository.AppointmentRepository;
+import com.gamgam.backend.appointment.repository.AppointmentTimeVoteRepository;
 import com.gamgam.backend.appointment.vo.AppointmentStatus;
 import com.gamgam.backend.appointment.vo.Place;
-import com.gamgam.backend.appointment.entity.AppointmentVote;
-import com.gamgam.backend.appointment.repository.AppointmentVoteRepository;
-import com.gamgam.backend.appointment.vo.VoteType;
 import com.gamgam.backend.global.exception.BusinessException;
 import com.gamgam.backend.global.exception.ErrorCode;
 import com.gamgam.backend.global.util.KstTimeConverter;
-import com.gamgam.backend.room.RoomAccess;
-import java.util.List;
 import java.time.OffsetDateTime;
 import java.time.temporal.ChronoUnit;
+import java.util.List;
 import java.util.Objects;
 import java.util.Set;
 import java.util.TreeSet;
@@ -32,9 +33,10 @@ import org.springframework.transaction.annotation.Transactional;
 @Transactional(readOnly = true)
 public class AppointmentVotingService {
     private final AppointmentRepository appointments;
-    private final AppointmentVoteRepository votes;
+    private final AppointmentMemberRepository members;
+    private final AppointmentTimeVoteRepository timeVotes;
+    private final AppointmentPlaceVoteRepository placeVotes;
     private final AppointmentParticipantRepository participants;
-    private final RoomAccess rooms;
 
     public AppointmentVotingResponse get(String id, String userId) {
         return response(load(id, userId, false), userId);
@@ -42,28 +44,26 @@ public class AppointmentVotingService {
 
     @Transactional
     public AppointmentVotingResponse voteTime(String id, String userId, Set<Integer> indexes) {
-        return vote(id, userId, indexes, VoteType.TIME);
+        Appointment appointment = load(id, userId, true);
+        requireVoteAllowed(appointment, true);
+        validateIndexes(indexes, appointment.getCandidatesTime().size());
+        timeVotes.deleteAllByAppointmentIdAndUserId(id, userId);
+        timeVotes.flush();
+        timeVotes.saveAll(new TreeSet<>(indexes).stream()
+                .map(index -> new AppointmentTimeVote(id, userId, index)).toList());
+        synchronizeParticipation(appointment, userId, indexes.isEmpty() ? null : false);
+        return response(appointment, userId);
     }
 
     @Transactional
     public AppointmentVotingResponse votePlace(String id, String userId, Set<Integer> indexes) {
-        return vote(id, userId, indexes, VoteType.PLACE);
-    }
-
-    private AppointmentVotingResponse vote(String id, String userId, Set<Integer> indexes, VoteType type) {
         Appointment appointment = load(id, userId, true);
-        requireCoordinating(appointment);
-        boolean allowed = type == VoteType.TIME
-                ? appointment.getTemplate().coordinatesTime() : appointment.getTemplate().coordinatesPlace();
-        if (!allowed) throw new BusinessException(ErrorCode.VOTE_NOT_ALLOWED);
-        int size = type == VoteType.TIME ? appointment.getCandidatesTime().size() : appointment.getCandidatesPlace().size();
-        if (indexes == null || indexes.stream().anyMatch(i -> i == null || i < 0 || i >= size)) {
-            throw new BusinessException(ErrorCode.INVALID_OPTION);
-        }
-        // 범위 확인을 먼저 해서 잘못된 요청이 기존 표를 지우지 않도록 한다.
-        votes.deleteSelection(id, userId, type);
-        votes.saveAll(new TreeSet<>(indexes).stream()
-                .map(index -> new AppointmentVote(appointment, userId, type, index)).toList());
+        requireVoteAllowed(appointment, false);
+        validateIndexes(indexes, appointment.getCandidatesPlace().size());
+        placeVotes.deleteAllByAppointmentIdAndUserId(id, userId);
+        placeVotes.flush();
+        placeVotes.saveAll(new TreeSet<>(indexes).stream()
+                .map(index -> new AppointmentPlaceVote(id, userId, index)).toList());
         synchronizeParticipation(appointment, userId, indexes.isEmpty() ? null : false);
         return response(appointment, userId);
     }
@@ -73,38 +73,20 @@ public class AppointmentVotingService {
         Appointment appointment = load(id, userId, true);
         requireCoordinating(appointment);
         if (selected) {
-            // 특정 후보 선택과 배타적이다. 전환과 참여자 갱신을 하나의 트랜잭션에서 처리한다.
-            votes.deleteSelection(id, userId, VoteType.TIME);
-            votes.deleteSelection(id, userId, VoteType.PLACE);
+            timeVotes.deleteAllByAppointmentIdAndUserId(id, userId);
+            placeVotes.deleteAllByAppointmentIdAndUserId(id, userId);
+            timeVotes.flush();
+            placeVotes.flush();
         }
         synchronizeParticipation(appointment, userId, selected);
         return response(appointment, userId);
     }
 
-    private void synchronizeParticipation(Appointment appointment, String userId, Boolean regardless) {
-        var participant = participants.findByAppointmentIdAndUserId(appointment.getId(), userId)
-                .orElseGet(() -> new AppointmentParticipant(appointment, userId));
-        if (regardless != null) participant.setRegardlessOfTimeAndPlace(regardless);
-        if (participant.isRegardlessOfTimeAndPlace()
-                || votes.existsByAppointmentIdAndUserId(appointment.getId(), userId)) {
-            if (participant.getId() == null) participants.save(participant);
-        } else if (participant.getId() != null) {
-            participants.delete(participant);
-        }
-    }
-
     @Transactional
     public AppointmentVotingResponse addTimeCandidate(String id, String userId, TimeCandidateRequest request) {
         Appointment appointment = load(id, userId, true);
-        requireCoordinating(appointment);
-        if (!appointment.getTemplate().coordinatesTime()) {
-            throw new BusinessException(ErrorCode.VOTE_NOT_ALLOWED);
-        }
-        if (request.time() == null || !request.time().isAfter(OffsetDateTime.now())) {
-            throw new BusinessException(ErrorCode.BAD_REQUEST);
-        }
-        var time = normalizeCandidateTime(request.time());
-        // 오프셋 표기가 달라도 같은 순간이면 중복 후보로 처리한다.
+        requireVoteAllowed(appointment, true);
+        OffsetDateTime time = normalizeCandidateTime(request.time());
         boolean duplicate = appointment.getCandidatesTime().stream()
                 .anyMatch(candidate -> normalizeCandidateTime(candidate).isEqual(time));
         if (duplicate) throw new BusinessException(ErrorCode.DUPLICATE_CANDIDATE);
@@ -112,18 +94,10 @@ public class AppointmentVotingService {
         return response(appointment, userId);
     }
 
-    private static OffsetDateTime normalizeCandidateTime(OffsetDateTime time) {
-        // DB의 timestamp(6) 정밀도에 맞춰 반올림해 재요청 시에도 같은 후보로 인식한다.
-        return KstTimeConverter.toUtc(time).plusNanos(500).truncatedTo(ChronoUnit.MICROS);
-    }
-
     @Transactional
     public AppointmentVotingResponse addPlaceCandidate(String id, String userId, PlaceRequest request) {
         Appointment appointment = load(id, userId, true);
-        requireCoordinating(appointment);
-        if (!appointment.getTemplate().coordinatesPlace()) {
-            throw new BusinessException(ErrorCode.VOTE_NOT_ALLOWED);
-        }
+        requireVoteAllowed(appointment, false);
         String name = request.name().strip();
         boolean duplicate = appointment.getCandidatesPlace().stream().anyMatch(place ->
                 name.equalsIgnoreCase(place.name().strip())
@@ -131,15 +105,23 @@ public class AppointmentVotingService {
                         && Objects.equals(request.longitude(), place.longitude()));
         if (duplicate) throw new BusinessException(ErrorCode.DUPLICATE_CANDIDATE);
         appointment.addCandidatePlace(new Place(name, request.latitude(), request.longitude()));
-        // 제안만으로 투표나 참여 신청을 만들지 않는다. 기존 투표도 그대로 유지한다.
         return response(appointment, userId);
     }
 
     private Appointment load(String id, String userId, boolean forUpdate) {
         Appointment appointment = (forUpdate ? appointments.findByIdForUpdate(id) : appointments.findById(id))
                 .orElseThrow(() -> new BusinessException(ErrorCode.APPOINTMENT_NOT_FOUND));
-        rooms.requireMember(appointment.getRoomId(), userId);
+        if (!members.existsByAppointmentIdAndUserId(id, userId)) {
+            throw new BusinessException(ErrorCode.APPOINTMENT_ACCESS_DENIED);
+        }
         return appointment;
+    }
+
+    private static void requireVoteAllowed(Appointment appointment, boolean time) {
+        requireCoordinating(appointment);
+        boolean allowed = time ? appointment.getTemplate().coordinatesTime()
+                : appointment.getTemplate().coordinatesPlace();
+        if (!allowed) throw new BusinessException(ErrorCode.VOTE_NOT_ALLOWED);
     }
 
     private static void requireCoordinating(Appointment appointment) {
@@ -148,29 +130,56 @@ public class AppointmentVotingService {
         }
     }
 
+    private static void validateIndexes(Set<Integer> indexes, int size) {
+        if (indexes == null || indexes.stream().anyMatch(index -> index == null || index < 0 || index >= size)) {
+            throw new BusinessException(ErrorCode.INVALID_OPTION);
+        }
+    }
+
+    private static OffsetDateTime normalizeCandidateTime(OffsetDateTime time) {
+        if (time == null || !time.isAfter(OffsetDateTime.now())) {
+            throw new BusinessException(ErrorCode.BAD_REQUEST);
+        }
+        return KstTimeConverter.toUtc(time).plusNanos(500).truncatedTo(ChronoUnit.MICROS);
+    }
+
+    private void synchronizeParticipation(Appointment appointment, String userId, Boolean regardless) {
+        AppointmentParticipant participant = participants.findByAppointmentIdAndUserId(appointment.getId(), userId)
+                .orElseGet(() -> new AppointmentParticipant(appointment, userId));
+        if (regardless != null) participant.setRegardlessOfTimeAndPlace(regardless);
+        boolean hasVote = timeVotes.existsByAppointmentIdAndUserId(appointment.getId(), userId)
+                || placeVotes.existsByAppointmentIdAndUserId(appointment.getId(), userId);
+        if (participant.isRegardlessOfTimeAndPlace() || hasVote) {
+            if (participant.getId() == null) participants.save(participant);
+        } else if (participant.getId() != null) {
+            participants.delete(participant);
+        }
+    }
+
     private AppointmentVotingResponse response(Appointment appointment, String userId) {
-        List<AppointmentVote> allVotes = votes.findByAppointmentIdOrderByIdAsc(appointment.getId());
-        var members = participants.findByAppointmentIdOrderByJoinedAtAscIdAsc(appointment.getId());
-        var participantIds = members.stream().map(AppointmentParticipant::getUserId).toList();
-        var regardlessIds = members.stream().filter(AppointmentParticipant::isRegardlessOfTimeAndPlace)
+        List<AppointmentTimeVote> allTimeVotes = timeVotes.findAllByAppointmentId(appointment.getId());
+        List<AppointmentPlaceVote> allPlaceVotes = placeVotes.findAllByAppointmentId(appointment.getId());
+        List<AppointmentParticipant> allParticipants =
+                participants.findByAppointmentIdOrderByJoinedAtAscIdAsc(appointment.getId());
+        List<String> participantIds = allParticipants.stream().map(AppointmentParticipant::getUserId).toList();
+        List<String> regardlessIds = allParticipants.stream()
+                .filter(AppointmentParticipant::isRegardlessOfTimeAndPlace)
                 .map(AppointmentParticipant::getUserId).toList();
         var times = IntStream.range(0, appointment.getCandidatesTime().size()).mapToObj(index -> {
-            var voterIds = voterIds(allVotes, VoteType.TIME, index);
+            List<String> voterIds = allTimeVotes.stream().filter(vote -> vote.getOptionIndex() == index)
+                    .map(AppointmentTimeVote::getUserId).sorted().toList();
             return new AppointmentVotingResponse.TimeOption(index,
                     KstTimeConverter.toKst(appointment.getCandidatesTime().get(index)),
                     voterIds.size(), voterIds, voterIds.contains(userId));
         }).toList();
         var places = IntStream.range(0, appointment.getCandidatesPlace().size()).mapToObj(index -> {
-            var voterIds = voterIds(allVotes, VoteType.PLACE, index);
+            List<String> voterIds = allPlaceVotes.stream().filter(vote -> vote.getOptionIndex() == index)
+                    .map(AppointmentPlaceVote::getUserId).sorted().toList();
             return new AppointmentVotingResponse.PlaceOption(index, appointment.getCandidatesPlace().get(index),
                     voterIds.size(), voterIds, voterIds.contains(userId));
         }).toList();
         return new AppointmentVotingResponse(appointment.getId(), appointment.getRoomId(), appointment.getStatus(),
-                participantIds.contains(userId), participantIds, regardlessIds.contains(userId), regardlessIds, times, places);
-    }
-
-    private static List<String> voterIds(List<AppointmentVote> votes, VoteType type, int index) {
-        return votes.stream().filter(v -> v.getType() == type && v.getOptionIndex() == index)
-                .map(AppointmentVote::getUserId).sorted().toList();
+                participantIds.contains(userId), participantIds, regardlessIds.contains(userId), regardlessIds,
+                times, places);
     }
 }

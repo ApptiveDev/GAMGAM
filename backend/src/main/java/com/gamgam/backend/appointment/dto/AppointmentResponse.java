@@ -12,6 +12,7 @@ import com.gamgam.backend.global.util.KstTimeConverter;
 import java.time.Instant;
 import java.time.OffsetDateTime;
 import java.util.List;
+import java.util.Map;
 
 public record AppointmentResponse(
         String id,
@@ -27,8 +28,24 @@ public record AppointmentResponse(
         LocationSharingPolicy locationSharing,
         AppointmentStatus status,
         String shareUrl,
-        Instant createdAt
+        Instant createdAt,
+        String hostId,
+        String inviteCode,
+        List<AppointmentMemberResponse> members,
+        Map<Integer, List<String>> timeVotes,
+        Map<Integer, List<String>> placeVotes,
+        List<String> penaltyAgreedUserIds
 ) {
+    public AppointmentResponse(String id, String name, AppointmentTemplate template,
+                               List<OffsetDateTime> candidatesTime, OffsetDateTime confirmedTime,
+                               List<Place> candidatesPlace, Place confirmedPlace,
+                               PenaltyRule penalty, RewardRule reward, LocationSharingPolicy locationSharing,
+                               AppointmentStatus status, String shareUrl, Instant createdAt) {
+        this(id, null, name, template, candidatesTime, confirmedTime, candidatesPlace, confirmedPlace,
+                penalty, reward, locationSharing, status, shareUrl, createdAt,
+                null, null, List.of(), Map.of(), Map.of(), List.of());
+    }
+
     public static AppointmentResponse of(Appointment appointment, String shareUrl) {
         return new AppointmentResponse(
                 appointment.getId(),
@@ -45,6 +62,19 @@ public record AppointmentResponse(
                 appointment.getLocationSharing(),
                 appointment.getStatus(),
                 shareUrl,
-                appointment.getCreatedAt());
+                appointment.getCreatedAt(), appointment.getHostId(), appointment.getInviteCode(),
+                List.of(), Map.of(), Map.of(), List.of());
+    }
+
+    public static AppointmentResponse of(Appointment appointment, String shareUrl,
+                                         List<AppointmentMemberResponse> members,
+                                         Map<Integer, List<String>> timeVotes,
+                                         Map<Integer, List<String>> placeVotes,
+                                         List<String> penaltyAgreedUserIds) {
+        AppointmentResponse base = of(appointment, shareUrl);
+        return new AppointmentResponse(base.id, base.roomId, base.name, base.template, base.candidatesTime,
+                base.confirmedTime, base.candidatesPlace, base.confirmedPlace, base.penalty, base.reward,
+                base.locationSharing, base.status, base.shareUrl, base.createdAt,
+                base.hostId, base.inviteCode, members, timeVotes, placeVotes, penaltyAgreedUserIds);
     }
 }

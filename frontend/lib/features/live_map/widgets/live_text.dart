@@ -34,6 +34,7 @@ abstract final class LiveText {
 
   static IconData transportIcon(Transport t) => switch (t) {
         Transport.walk => Icons.directions_walk,
+        Transport.bus => Icons.directions_bus,
         Transport.car => Icons.directions_car,
         Transport.subway => Icons.subway,
       };
