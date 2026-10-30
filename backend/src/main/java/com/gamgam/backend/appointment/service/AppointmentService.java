@@ -7,11 +7,9 @@ import com.gamgam.backend.appointment.dto.CreateAppointmentRequest;
 import com.gamgam.backend.appointment.entity.Appointment;
 import com.gamgam.backend.appointment.entity.AppointmentMember;
 import com.gamgam.backend.appointment.entity.AppointmentPlaceVote;
-import com.gamgam.backend.appointment.entity.AppointmentParticipant;
 import com.gamgam.backend.appointment.entity.AppointmentTimeVote;
 import com.gamgam.backend.appointment.repository.AppointmentMemberRepository;
 import com.gamgam.backend.appointment.repository.AppointmentPlaceVoteRepository;
-import com.gamgam.backend.appointment.repository.AppointmentParticipantRepository;
 import com.gamgam.backend.appointment.repository.AppointmentRepository;
 import com.gamgam.backend.appointment.repository.AppointmentTimeVoteRepository;
 import com.gamgam.backend.appointment.repository.PenaltyAgreementRepository;
@@ -47,7 +45,6 @@ public class AppointmentService {
     private final AppointmentMemberRepository memberRepository;
     private final AppointmentTimeVoteRepository timeVoteRepository;
     private final AppointmentPlaceVoteRepository placeVoteRepository;
-    private final AppointmentParticipantRepository participantRepository;
     private final PenaltyAgreementRepository penaltyAgreementRepository;
     private final UserRepository userRepository;
     private final ShareLinkGenerator shareLinkGenerator;
@@ -144,9 +141,6 @@ public class AppointmentService {
         timeVoteRepository.findByAppointmentIdAndUserIdAndOptionIndex(appointmentId, userId, optionIndex)
                 .ifPresentOrElse(timeVoteRepository::delete,
                         () -> timeVoteRepository.save(new AppointmentTimeVote(appointmentId, userId, optionIndex)));
-        timeVoteRepository.flush();
-        synchronizeParticipation(appointment, userId,
-                timeVoteRepository.existsByAppointmentIdAndUserId(appointmentId, userId) ? false : null);
         return toResponse(appointment);
     }
 
@@ -155,10 +149,10 @@ public class AppointmentService {
         Appointment appointment = findAccessible(userId, appointmentId);
         requireCoordinating(appointment);
         validateIndex(optionIndex, appointment.getCandidatesPlace().size());
-        placeVoteRepository.deleteAllByAppointmentIdAndUserId(appointmentId, userId);
+        placeVoteRepository.findByAppointmentIdAndUserId(appointmentId, userId)
+                .ifPresent(placeVoteRepository::delete);
         placeVoteRepository.flush();
         placeVoteRepository.save(new AppointmentPlaceVote(appointmentId, userId, optionIndex));
-        synchronizeParticipation(appointment, userId, false);
         return toResponse(appointment);
     }
 
@@ -167,8 +161,6 @@ public class AppointmentService {
         Appointment appointment = findAccessible(userId, appointmentId);
         requireCoordinating(appointment);
         placeVoteRepository.deleteAllByAppointmentIdAndUserId(appointmentId, userId);
-        placeVoteRepository.flush();
-        synchronizeParticipation(appointment, userId, null);
         return toResponse(appointment);
     }
 
@@ -244,22 +236,7 @@ public class AppointmentService {
         timeVoteRepository.deleteAllByAppointmentIdAndUserId(appointmentId, userId);
         placeVoteRepository.deleteAllByAppointmentIdAndUserId(appointmentId, userId);
         penaltyAgreementRepository.deleteAllByAppointmentIdAndUserId(appointmentId, userId);
-        participantRepository.deleteAllByAppointmentIdAndUserId(appointmentId, userId);
         memberRepository.delete(member);
-    }
-
-    private void synchronizeParticipation(Appointment appointment, String userId, Boolean regardless) {
-        AppointmentParticipant participant = participantRepository
-                .findByAppointmentIdAndUserId(appointment.getId(), userId)
-                .orElseGet(() -> new AppointmentParticipant(appointment, userId));
-        if (regardless != null) participant.setRegardlessOfTimeAndPlace(regardless);
-        boolean hasVote = timeVoteRepository.existsByAppointmentIdAndUserId(appointment.getId(), userId)
-                || placeVoteRepository.existsByAppointmentIdAndUserId(appointment.getId(), userId);
-        if (participant.isRegardlessOfTimeAndPlace() || hasVote) {
-            if (participant.getId() == null) participantRepository.save(participant);
-        } else if (participant.getId() != null) {
-            participantRepository.delete(participant);
-        }
     }
 
     private Appointment findAccessible(String userId, String id) {

@@ -15,7 +15,7 @@ import lombok.NoArgsConstructor;
 @Getter
 @NoArgsConstructor(access = AccessLevel.PROTECTED)
 @Table(name = "appointment_place_votes",
-        uniqueConstraints = @UniqueConstraint(columnNames = {"appointment_id", "user_id", "option_index"}))
+        uniqueConstraints = @UniqueConstraint(columnNames = {"appointment_id", "user_id"}))
 public class AppointmentPlaceVote {
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)

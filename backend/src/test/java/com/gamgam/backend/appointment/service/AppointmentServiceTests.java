@@ -12,7 +12,6 @@ import com.gamgam.backend.appointment.entity.Appointment;
 import com.gamgam.backend.appointment.entity.AppointmentMember;
 import com.gamgam.backend.appointment.repository.AppointmentMemberRepository;
 import com.gamgam.backend.appointment.repository.AppointmentPlaceVoteRepository;
-import com.gamgam.backend.appointment.repository.AppointmentParticipantRepository;
 import com.gamgam.backend.appointment.repository.AppointmentRepository;
 import com.gamgam.backend.appointment.repository.AppointmentTimeVoteRepository;
 import com.gamgam.backend.appointment.repository.PenaltyAgreementRepository;
@@ -42,11 +41,10 @@ class AppointmentServiceTests {
         members = mock(AppointmentMemberRepository.class);
         var timeVotes = mock(AppointmentTimeVoteRepository.class);
         var placeVotes = mock(AppointmentPlaceVoteRepository.class);
-        var participants = mock(AppointmentParticipantRepository.class);
         var agreements = mock(PenaltyAgreementRepository.class);
         users = mock(UserRepository.class);
         RoomAccess rooms = mock(RoomAccess.class);
-        service = new AppointmentService(appointments, members, timeVotes, placeVotes, participants, agreements, users,
+        service = new AppointmentService(appointments, members, timeVotes, placeVotes, agreements, users,
                 new ShareLinkGenerator(new ShareProperties("http://localhost:3000")), rooms);
         user = User.builder().id("user-1").email("user@example.com").name("User").passwordHash("hash").build();
         when(users.findById("user-1")).thenReturn(Optional.of(user));
