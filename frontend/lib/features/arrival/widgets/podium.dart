@@ -54,9 +54,14 @@ class _Step extends StatelessWidget {
         child: Column(mainAxisAlignment: MainAxisAlignment.center, children: [
           Text('$rank', style: TextStyle(fontSize: first ? 26 : 20, fontWeight: FontWeight.w700, color: first ? Colors.white : AppColors.textSub)),
           const SizedBox(height: 2),
-          Text(
-            DateText.time(person.arrivedAt!),
-            style: TextStyle(fontSize: 10, color: first ? Colors.white.withValues(alpha: 0.85) : AppColors.textMuted),
+          // "오전 10:17"처럼 길어도 한 줄로. 칸보다 길면 글자를 줄인다.
+          FittedBox(
+            fit: BoxFit.scaleDown,
+            child: Text(
+              DateText.time(person.arrivedAt!),
+              maxLines: 1,
+              style: TextStyle(fontSize: 10, color: first ? Colors.white.withValues(alpha: 0.85) : AppColors.textMuted),
+            ),
           ),
         ]),
       ),
