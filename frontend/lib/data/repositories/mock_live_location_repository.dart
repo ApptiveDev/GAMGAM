@@ -19,6 +19,8 @@ class MockLiveLocationRepository extends LiveLocationRepository {
   final String _meId;
   final Duration tick;
 
+  String get meId => _meId;
+
   static const _minutesPerTick = 0.5;
   static const _startBefore = Duration(minutes: 42);
   static const _replyDelay = Duration(seconds: 2);
@@ -30,6 +32,9 @@ class MockLiveLocationRepository extends LiveLocationRepository {
 
   /// API 구현체는 현재 사용자의 좌표를 기기 GPS로 대체할 수 있다.
   bool usesDeviceLocationFor(String appointmentId) => false;
+
+  /// 서버가 위치를 내려주는 약속. 친구 움직임·도착·콕 찌르기 연출을 꺼서 서버 값만 보여준다.
+  bool isLiveFromServer(String appointmentId) => false;
 
   @override
   ShareLevel? shareLevelOf(String appointmentId) => _levels[appointmentId];
@@ -104,6 +109,8 @@ class MockLiveLocationRepository extends LiveLocationRepository {
     _cooldowns['$appointmentId/$targetId'] = DateTime.now().add(pokeCooldown);
     _countPoke(sim, targetId);
     notifyListeners();
+    // 콕 찌르기 API가 아직 없다. 서버 약속에서는 가짜 답장을 보내지 않는다.
+    if (isLiveFromServer(appointmentId)) return;
 
     // 목업 연출: 상대가 알림에서 바로 답장한다.
     await Future.delayed(_replyDelay);
@@ -133,6 +140,7 @@ class MockLiveLocationRepository extends LiveLocationRepository {
   StreamController<LiveEvent> _controller(String appointmentId) => _events.putIfAbsent(appointmentId, () => StreamController<LiveEvent>.broadcast());
 
   _Sim _createSim(Appointment a) {
+    if (isLiveFromServer(a.id)) return _serverSim(a);
     final destination = a.place?.location ?? GeoPoint.hongikUniv;
     final appointmentTime = a.time ?? DateTime.now().add(_startBefore);
     final start = appointmentTime.subtract(_startBefore);
@@ -177,7 +185,36 @@ class MockLiveLocationRepository extends LiveLocationRepository {
     );
   }
 
+  /// 서버 약속: 실제 시계로 흐르고, 위치는 [applyServerPositions]로만 바뀐다.
+  /// ETA·도착 시각·이동수단은 서버 응답에 없어서 비워 둔다. (내 것만 기기 GPS로 계산)
+  _Sim _serverSim(Appointment a) {
+    final destination = a.place?.location ?? GeoPoint.hongikUniv;
+    return _Sim(
+      incomingFrom: null,
+      runners: {for (final p in a.participants) p.id: _Runner(_Role.me, destination)},
+      session: LiveSession(
+        appointmentId: a.id,
+        destination: destination,
+        appointmentTime: a.time ?? DateTime.now(),
+        now: DateTime.now(),
+        participants: [
+          for (final p in a.participants)
+            LiveParticipant(
+              participant: p,
+              shareLevel: p.id == _meId ? (_levels[a.id] ?? ShareLevel.recommended) : ShareLevel.basic,
+              transport: Transport.walk,
+            ),
+        ],
+      ),
+    );
+  }
+
   void _advance(_Sim sim) {
+    if (isLiveFromServer(sim.session.appointmentId)) {
+      sim.session = sim.session.copyWith(now: DateTime.now());
+      notifyListeners();
+      return;
+    }
     sim.elapsed += _minutesPerTick;
     final now = sim.session.appointmentTime.subtract(_startBefore).add(Duration(seconds: (sim.elapsed * 60).round()));
     final events = <LiveEvent>[];
