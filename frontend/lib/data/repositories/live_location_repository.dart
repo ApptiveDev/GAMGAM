@@ -25,6 +25,4 @@ abstract class LiveLocationRepository extends ChangeNotifier {
   Duration pokeCooldownOf(String appointmentId, String targetId);
 
   Future<void> poke(String appointmentId, String targetId, PokeNote note);
-
-  Future<void> reply(String appointmentId, Poke poke, PokeReply reply);
 }

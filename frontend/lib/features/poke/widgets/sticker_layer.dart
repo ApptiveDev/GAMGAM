@@ -33,6 +33,19 @@ class PokeNoteView extends StatelessWidget {
   }
 }
 
+/// 쪽지를 보여주기 전에 카드·스티커 그림을 미리 풀어 둔다.
+/// 그림은 처음 그릴 때 압축을 푸는 시간이 걸려서, 그 사이 카드가 비어 보이지 않게 한다.
+Future<void> precachePokeNote(BuildContext context, PokeNote note) => Future.wait([
+      for (final path in NoteCardView.imageAssets(note.card)) precacheImage(AssetImage(path), context),
+      for (final s in {for (final s in note.stickers) s.sticker}) precacheImage(AssetImage(PokeStyle.sticker(s)), context),
+      for (final path in NoteCardView.svgAssets(note.card)) _precacheSvg(path),
+    ]);
+
+Future<void> _precacheSvg(String path) {
+  final loader = SvgAssetLoader(path);
+  return svg.cache.putIfAbsent(loader.cacheKey(null), () => loader.loadBytes(null));
+}
+
 /// 스티커 가운데를 카드 안 (dx, dy) 위치에 두고 돌린다. [origin]은 카드 왼쪽 위.
 Widget _place(PlacedSticker s, double k, {required Widget child, double extra = 0, Offset origin = Offset.zero}) {
   final box = stickerBaseSize * s.scale * k + extra * 2;
@@ -141,9 +154,8 @@ class _EditableStickerState extends State<_EditableSticker> {
     }
     final moved = d.focalPoint - _startFocal;
     final next = s.copyWith(dx: _start.dx + moved.dx / _card, dy: _start.dy + moved.dy / _card);
-    widget.onChanged(d.pointerCount < 2
-        ? next
-        : next.copyWith(scale: (_start.scale * d.scale).clamp(_minScale, _maxScale), rotation: _start.rotation + d.rotation));
+    widget.onChanged(
+        d.pointerCount < 2 ? next : next.copyWith(scale: (_start.scale * d.scale).clamp(_minScale, _maxScale), rotation: _start.rotation + d.rotation));
   }
 
   /// 스티커 가운데 (화면 좌표). 회전해도 가운데는 그대로다.

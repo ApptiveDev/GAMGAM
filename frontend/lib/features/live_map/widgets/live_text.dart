@@ -18,14 +18,6 @@ abstract final class LiveText {
         LiveStatus.sharingOff => ('위치 공유 꺼짐', null),
       };
 
-  /// 약속까지 남은 시간. "42분" / "1시간 12분" / "3분 지남"
-  static String remaining(Duration d) {
-    if (d.isNegative) return '${-d.inMinutes}분 지남';
-    final minutes = (d.inSeconds / 60).ceil();
-    if (minutes < 60) return '$minutes분';
-    return '${minutes ~/ 60}시간 ${minutes % 60}분';
-  }
-
   /// 쿨다운 남은 시간. "3:12"
   static String cooldown(Duration d) => '${d.inMinutes}:${d.inSeconds.remainder(60).toString().padLeft(2, '0')}';
 }

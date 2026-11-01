@@ -16,14 +16,13 @@ import '../../data/repositories/appointment_repository.dart';
 import '../../data/repositories/live_location_repository.dart';
 import '../../data/models/poke_note.dart';
 import '../poke/poke_note_page.dart';
+import '../poke/widgets/received_note.dart';
 import '../poke/widgets/send_feedback.dart';
 import 'widgets/live_map_view.dart';
-import 'widgets/live_text.dart';
 import 'widgets/map_header.dart';
 import 'widgets/map_markers.dart';
 import 'widgets/participant_sheet.dart';
 import 'widgets/person_card.dart';
-import 'widgets/poke_banner.dart';
 
 /// 07 · 당일 지도 【핵심】 + 08 · 콕 찌르기.
 /// 지도가 주인공. 출발 전·공유 꺼짐은 지도 밖 칩으로 담백하게 처리한다.
@@ -161,13 +160,6 @@ class _LiveMapPageState extends State<LiveMapPage> with SingleTickerProviderStat
     showSentNote(context, note);
   }
 
-  void _reply(PokeReply reply) {
-    final poke = _incoming!;
-    _live.reply(widget.appointmentId, poke, reply);
-    setState(() => _incoming = null);
-    _toast('${poke.from.name}에게 "${reply.label}"라고 답했어요');
-  }
-
   @override
   Widget build(BuildContext context) {
     final appointments = context.watch<AppointmentRepository>();
@@ -237,18 +229,6 @@ class _LiveMapPageState extends State<LiveMapPage> with SingleTickerProviderStat
           statusMessages: _statusMessages,
         ),
         if (_preview) const _PreviewTag(),
-        if (_incoming != null)
-          SafeArea(
-            child: Padding(
-              padding: const EdgeInsets.fromLTRB(12, 8, 12, 0),
-              child: PokeBanner(
-                poke: _incoming!,
-                subtitle: '${a.name} · 약속까지 ${LiveText.remaining(session.remaining)}',
-                onReply: _reply,
-                onClose: () => setState(() => _incoming = null),
-              ),
-            ),
-          ),
         if (_pending != null)
           Positioned(
             left: 20,
@@ -262,6 +242,11 @@ class _LiveMapPageState extends State<LiveMapPage> with SingleTickerProviderStat
             right: 20,
             top: MediaQuery.paddingOf(context).top + 22,
             child: Center(child: SentToast(expanded: _sentExpanded, onView: _viewSent)),
+          ),
+        // 친구가 보낸 쪽지: 봉투가 떨어져 열린다. 누르면 닫힌다.
+        if (_incoming != null)
+          Positioned.fill(
+            child: ReceivedNoteOverlay(key: ObjectKey(_incoming), poke: _incoming!, onClose: () => setState(() => _incoming = null)),
           ),
       ]),
     );

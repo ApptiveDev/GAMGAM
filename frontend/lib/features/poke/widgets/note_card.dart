@@ -66,6 +66,24 @@ class NoteCardView extends StatelessWidget {
     NoteCard.music: _CardText(Color(0xFF756354)),
   };
 
+  /// 이 카드를 그리는 데 드는 이미지들. 보여주기 전에 미리 준비할 때 쓴다 ([precachePokeNote]).
+  /// 아래 배경 위젯이 쓰는 파일과 맞춰 둔다.
+  static List<String> imageAssets(NoteCard card) => switch (card) {
+        NoteCard.airmail => const ['$_cards/airmail.png'],
+        NoteCard.heart => const ['$_cards/heart.png'],
+        NoteCard.grid => const ['$_cards/paper.png'],
+        NoteCard.check => const ['$_cards/paper.png', '$_cards/check.png'],
+        NoteCard.music => const ['$_cards/music/0d03e.png', '$_cards/music/d1a1f.png', '$_cards/music/d24f0.png'],
+        NoteCard.flower => [
+            for (final f in const ['881e6', 'c66c3', 'b9ca3', '6bf3d', 'f6f77', '7b6d8', '67246', 'f2716', 'f05bc', 'cc4cc']) '$_cards/flower/$f.png'
+          ],
+      };
+
+  static List<String> svgAssets(NoteCard card) => switch (card) {
+        NoteCard.flower => const ['$_cards/flower/lines.svg', '$_cards/flower/dot_small.svg', '$_cards/flower/dot_large.svg'],
+        _ => const [],
+      };
+
   static Widget _background(NoteCard card) => switch (card) {
         NoteCard.airmail => Image.asset('$_cards/airmail.png', fit: BoxFit.cover),
         NoteCard.heart => Image.asset('$_cards/heart.png', fit: BoxFit.cover),

@@ -6,6 +6,7 @@ import 'package:gamgam/data/models/poke_note.dart';
 import 'package:gamgam/data/repositories/mock_appointment_repository.dart';
 import 'package:gamgam/data/repositories/mock_live_location_repository.dart';
 import 'package:gamgam/features/live_map/widgets/person_card.dart';
+import 'package:gamgam/features/poke/widgets/received_note.dart';
 
 /// 테스트는 "1초 = 1분" 기준으로 시간을 흘린다. (목업 기본값은 2초 = 1분)
 const _tick = Duration(milliseconds: 500);
@@ -73,11 +74,14 @@ void main() {
     expect(find.text('콕 찌르기를 전송했습니다'), findsOneWidget);
     expect(live.pokeCooldownOf('a-hongdae', 'u-doyun'), greaterThan(const Duration(minutes: 4)));
 
-    // 08 받는 쪽 — 친구가 나를 콕 찌르면 배너에서 바로 답장.
-    expect(find.textContaining('님이 콕 찔렀어요'), findsOneWidget);
-    await tester.tap(find.text('5분 뒤 도착'));
+    // 08 받는 쪽 — 친구가 나를 콕 찌르면 봉투가 떨어져 열리고 쪽지가 보인다. 누르면 닫힌다.
+    final received = find.byType(ReceivedNoteOverlay);
+    expect(find.bySemanticsLabel(RegExp('님이 보낸 쪽지')), findsOneWidget);
+    await advance(tester, seconds: 2);
+    expect(find.text('어디쯤이야?'), findsOneWidget);
+    await tester.tap(received);
     await advance(tester);
-    expect(find.textContaining('님이 콕 찔렀어요'), findsNothing);
+    expect(received, findsNothing);
 
     // 1초 = 1분. 약 1분 뒤 모두 도착하면 09로 넘어간다.
     await advance(tester, seconds: 60);

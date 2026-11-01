@@ -120,13 +120,6 @@ class MockLiveLocationRepository extends LiveLocationRepository {
   }
 
   @override
-  Future<void> reply(String appointmentId, Poke poke, PokeReply reply) async {
-    final sim = _sims[appointmentId];
-    final me = sim?.runners[_meId];
-    if (reply == PokeReply.leavingNow && me != null && me.departAfter != null) me.departAfter = sim!.elapsed;
-  }
-
-  @override
   void dispose() {
     for (final sim in _sims.values) {
       sim.timer?.cancel();
