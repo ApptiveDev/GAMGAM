@@ -7,6 +7,8 @@ import '../../core/theme/app_colors.dart';
 import '../../core/utils/date_text.dart';
 import '../../core/widgets/avatar.dart';
 import '../../core/widgets/layout.dart';
+import '../../data/api/api_client.dart';
+import '../../data/api/api_error_message.dart';
 import '../../data/repositories/appointment_repository.dart';
 
 /// 초대 링크(/invite/:code)로 들어왔을 때. 약속 미리보기 → 참여하기 → 방.
@@ -22,7 +24,27 @@ class InvitePage extends StatefulWidget {
 class _InvitePageState extends State<InvitePage> {
   bool _joining = false;
 
+  /// 앱에 없는 코드로 참여해 봤는데 서버에도 없었다.
+  bool _notFound = false;
+
   void _close() => context.canPop() ? context.pop() : context.go(AppRoutes.home);
+
+  /// 서버에는 초대 코드로 미리보기하는 API가 없어서, 앱에 없는 약속은 바로 참여해 본다.
+  Future<void> _join(Future<String> Function() join) async {
+    setState(() => _joining = true);
+    try {
+      final id = await join();
+      if (mounted) context.go(AppRoutes.room(id));
+    } catch (e) {
+      if (!mounted) return;
+      final missing = e is StateError || (e is ApiException && e.code == 'INVALID_INVITE_CODE');
+      setState(() {
+        _joining = false;
+        _notFound = missing;
+      });
+      if (!missing) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(apiErrorMessage(e))));
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -32,7 +54,20 @@ class _InvitePageState extends State<InvitePage> {
     if (a == null) {
       return Scaffold(
         appBar: BackAppBar(onBack: _close),
-        body: const Padding(padding: kPagePadding, child: PageTitle('초대 코드를 찾을 수 없어요', subtitle: '링크가 맞는지 친구에게 다시 확인해주세요.')),
+        body: Padding(
+          padding: kPagePadding,
+          child: _notFound
+              ? const PageTitle('초대 코드를 찾을 수 없어요', subtitle: '링크가 맞는지 친구에게 다시 확인해주세요.')
+              : PageTitle('친구가 약속에\n초대했어요', subtitle: '초대 코드 ${widget.code.toUpperCase()}'),
+        ),
+        bottomNavigationBar: _notFound
+            ? null
+            : BottomCta(children: [
+                FilledButton(
+                  onPressed: _joining ? null : () => _join(() async => (await repo.joinByInviteCode(widget.code)).id),
+                  child: const Text('참여하기'),
+                ),
+              ]),
       );
     }
 
@@ -70,13 +105,12 @@ class _InvitePageState extends State<InvitePage> {
         FilledButton(
           onPressed: _joining
               ? null
-              : () async {
-                  if (!alreadyIn) {
-                    setState(() => _joining = true);
-                    await repo.join(a.id);
-                  }
-                  if (context.mounted) context.go(AppRoutes.room(a.id));
-                },
+              : () => alreadyIn
+                  ? context.go(AppRoutes.room(a.id))
+                  : _join(() async {
+                      await repo.join(a.id);
+                      return a.id;
+                    }),
           child: Text(alreadyIn ? '방으로 가기' : '참여하기'),
         ),
       ]),

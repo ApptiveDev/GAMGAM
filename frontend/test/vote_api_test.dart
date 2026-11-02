@@ -1,9 +1,12 @@
 import 'dart:convert';
 
+import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:gamgam/app.dart';
 import 'package:gamgam/data/api/api_client.dart';
 import 'package:gamgam/data/models/place.dart';
 import 'package:gamgam/data/repositories/api_appointment_repository.dart';
+import 'package:gamgam/data/repositories/mock_live_location_repository.dart';
 import 'package:http/http.dart' as http;
 import 'package:http/testing.dart';
 
@@ -158,5 +161,25 @@ void main() {
     expect(a.id, 'a1');
     expect(a.hasMember(repo.me.id), isTrue);
     expect(server.calls, contains('GET /api/v1/appointments/a1/votes'));
+  });
+
+  testWidgets('초대 링크를 열고 참여하면 약속 화면으로 간다', (tester) async {
+    final view = tester.view
+      ..physicalSize = const Size(360 * 3, 760 * 3)
+      ..devicePixelRatio = 3;
+    addTearDown(view.reset);
+
+    final (_, repo) = await loggedIn(joined: false);
+    final live = MockLiveLocationRepository(meId: repo.me.id);
+    addTearDown(live.dispose);
+    await tester.pumpWidget(GamgamApp(repository: repo, liveRepository: live, initialLocation: '/invite/ABC123'));
+    await tester.pumpAndSettle();
+    expect(find.text('초대 코드 ABC123'), findsOneWidget);
+
+    await tester.tap(find.text('참여하기'));
+    await tester.pumpAndSettle();
+    expect(find.text('참여하기'), findsNothing);
+    expect(find.text('조율중'), findsOneWidget, reason: '약속 상세 화면의 상태 표시');
+    expect(find.text('저녁 약속'), findsOneWidget);
   });
 }
