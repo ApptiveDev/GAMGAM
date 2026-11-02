@@ -9,6 +9,7 @@ import '../../core/router/app_routes.dart';
 import '../../core/theme/app_colors.dart';
 import '../../core/utils/date_text.dart';
 import '../../core/widgets/layout.dart';
+import '../../data/mock/mock_data.dart';
 import '../../data/models/appointment.dart';
 import '../../data/models/live_location.dart';
 import '../../data/repositories/appointment_repository.dart';
@@ -18,6 +19,7 @@ import 'widgets/live_text.dart';
 import 'widgets/map_header.dart';
 import 'widgets/map_markers.dart';
 import 'widgets/participant_sheet.dart';
+import 'widgets/person_card.dart';
 import 'widgets/poke_banner.dart';
 import 'widgets/poke_sheet.dart';
 
@@ -38,6 +40,13 @@ class _LiveMapPageState extends State<LiveMapPage> {
   Timer? _clock;
   Poke? _incoming;
   bool _preview = false;
+
+  /// 지도에서 누른 사람. 지도 빈 곳을 누르면 풀린다.
+  String? _selectedId;
+  final _camera = LiveMapCamera();
+
+  /// 상태 메시지. 저장·편집이 붙기 전까지는 약속 상세와 같은 목업을 보여준다.
+  static const _statusMessages = MockData.statusMessages;
 
   @override
   void initState() {
@@ -124,6 +133,8 @@ class _LiveMapPageState extends State<LiveMapPage> {
     final me = appointments.me.id;
     final sheetHeight = MediaQuery.sizeOf(context).height * ParticipantSheet.initialSize;
     final visible = session.participants.where((p) => p.visibleOnMap).toList();
+    final selected = _selectedId == null ? null : session.byId(_selectedId!);
+    final ranks = {for (final (i, p) in session.arrivalOrder.indexed) p.id: i + 1};
 
     return Scaffold(
       body: Stack(children: [
@@ -132,17 +143,33 @@ class _LiveMapPageState extends State<LiveMapPage> {
             destination: session.destination,
             destinationPin: const DestinationPin(),
             bottomInset: sheetHeight,
+            camera: _camera,
+            onPinTap: (id) => setState(() => _selectedId = id),
+            onMapTap: () => setState(() => _selectedId = null),
             pins: [
-              for (final p in visible) MapPin(id: p.id, position: p.position!, child: ParticipantMarker(person: p, isMe: p.id == me)),
+              for (final p in visible) MapPin(id: p.id, position: p.position!, child: ParticipantMarker(person: p, selected: p.id == _selectedId)),
             ],
           ),
         ),
         SafeArea(
           child: MapHeader(
-            appointment: a,
-            session: session,
-            meId: me,
-            onBack: () => context.canPop() ? context.pop() : context.go(AppRoutes.room(a.id)),
+            onClose: () => context.canPop() ? context.pop() : context.go(AppRoutes.room(a.id)),
+            moreMenu: {'위치 공유 설정': () => context.push(AppRoutes.locationSetting(a.id))},
+            onMyLocation: () {
+              final position = session.byId(me)?.position;
+              position == null ? _toast('아직 내 위치를 알 수 없어요') : _camera.focus(position);
+            },
+            onDestination: () => _camera.focus(session.destination),
+            card: selected == null
+                ? null
+                : PersonCard(
+                    person: selected,
+                    isMe: selected.id == me,
+                    rank: ranks[selected.id],
+                    cooldown: live.pokeCooldownOf(a.id, selected.id),
+                    onPoke: () => _poke(selected),
+                    statusMessage: _statusMessages[selected.id],
+                  ),
           ),
         ),
         ParticipantSheet(
@@ -151,6 +178,7 @@ class _LiveMapPageState extends State<LiveMapPage> {
           cooldownOf: (id) => live.pokeCooldownOf(a.id, id),
           onPoke: _poke,
           onShowResult: () => context.pushReplacement(AppRoutes.arrival(a.id)),
+          statusMessages: _statusMessages,
         ),
         if (_preview) const _PreviewTag(),
         if (_incoming != null)

@@ -6,12 +6,18 @@ import '../../../data/models/live_location.dart';
 /// 당일 지도 문구. 늦는 사람도 사실만 담백하게.
 abstract final class LiveText {
   /// "도착 · 오후 6:14" / "5분 후 도착 · 걷는 중" / "이동 중 · 자동차" / "출발 전 · 집에 있음" / "위치 공유 꺼짐"
-  static String status(LiveParticipant p) => switch (p.status) {
-        LiveStatus.arrived => '도착 · ${DateText.time(p.arrivedAt!)}',
-        LiveStatus.moving when (p.etaMinutes ?? 99) <= 5 => '${p.etaMinutes}분 후 도착 · ${p.transport.movingLabel}',
-        LiveStatus.moving => '이동 중 · ${p.transport.label}',
-        LiveStatus.notDeparted => '출발 전 · 집에 있음',
-        LiveStatus.sharingOff => '위치 공유 꺼짐',
+  static String status(LiveParticipant p) {
+    final (main, detail) = statusParts(p);
+    return detail == null ? main : '$main · $detail';
+  }
+
+  /// [status]를 가운데 점 앞뒤로 나눈 것. 디자인에서 앞뒤 글자 크기가 다르다.
+  static (String, String?) statusParts(LiveParticipant p) => switch (p.status) {
+        LiveStatus.arrived => ('도착', DateText.time(p.arrivedAt!)),
+        LiveStatus.moving when (p.etaMinutes ?? 99) <= 5 => ('${p.etaMinutes}분 후 도착', p.transport.movingLabel),
+        LiveStatus.moving => ('이동 중', p.transport.label),
+        LiveStatus.notDeparted => ('출발 전', '집에 있음'),
+        LiveStatus.sharingOff => ('위치 공유 꺼짐', null),
       };
 
   /// 콕 찌르기 시트의 한 줄 요약. "이동 중 · 도착까지 18분"

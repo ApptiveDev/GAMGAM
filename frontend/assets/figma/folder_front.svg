@@ -1,0 +1,38 @@
+<svg preserveAspectRatio="none" overflow="visible" style="display: block;" width="173.987" height="129.159" viewBox="0 0 173.987 129.159" fill="none" xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink">
+<foreignObject x="-35.1515" y="-35.1515" width="244.29" height="199.462"><div xmlns="http://www.w3.org/1999/xhtml" style="backdrop-filter:blur(8px);clip-path:url(#bgblur_0_0_52_clip_path);height:100%;width:100%"></div></foreignObject><g id="Rectangle 6702" data-figma-bg-blur-radius="16.002">
+<use xlink:href="#stroke0_0_52" fill="url(#paint0_linear_0_52)"/>
+<use xlink:href="#stroke0_0_52" fill="url(#paint1_linear_0_52)" fill-opacity="0.56"/>
+<use xlink:href="#stroke0_0_52" fill="url(#paint2_linear_0_52)" fill-opacity="0.34"/>
+<use xlink:href="#stroke0_0_52" fill="url(#paint3_radial_0_52)"/>
+<mask id="stroke1_0_52" fill="white">
+<use xlink:href="#stroke0_0_52"/>
+</mask>
+<path d="M63.5713 0H11.6683C4.91215 0 -0.431768 5.72045 0.0275435 12.461L7.23854 118.285C7.6557 124.407 12.7432 129.159 18.8793 129.159H155.382C161.465 129.159 166.527 124.486 167.013 118.423L173.949 31.8216C174.492 25.0533 169.162 19.2536 162.372 19.2224L92.1685 18.8998C89.1067 18.8857 86.1732 17.6687 84.0006 15.5113L71.7928 3.38859C69.607 1.2181 66.6517 0 63.5713 0Z" stroke-width="2.81676" stroke="#CDCDCD" mask="url(#stroke1_0_52)"/>
+</g>
+<defs>
+<clipPath id="bgblur_0_0_52_clip_path" transform="translate(35.1515 35.1515)"><path d="M11.6687 0.704102H63.571C66.4654 0.704102 69.2428 1.84918 71.2966 3.88867L83.5046 16.0107C85.8082 18.2983 88.9184 19.5885 92.1648 19.6035L162.369 19.9268C168.749 19.9561 173.757 25.4059 173.248 31.7656L166.311 118.367C165.855 124.064 161.098 128.455 155.383 128.455H18.8796C13.114 128.455 8.33332 123.989 7.94113 118.237L0.73019 12.4131C0.298613 6.07937 5.32026 0.704102 11.6687 0.704102Z"/>
+</clipPath><linearGradient id="paint0_linear_0_52" x1="87.0662" y1="0" x2="87.0662" y2="129.159" gradientUnits="userSpaceOnUse">
+<stop offset="0.667482" stop-color="#F0F1F6" stop-opacity="0.8"/>
+<stop offset="1" stop-color="#E6E6E6"/>
+</linearGradient>
+<linearGradient id="paint1_linear_0_52" x1="87.0662" y1="109.852" x2="87.0662" y2="125.83" gradientUnits="userSpaceOnUse">
+<stop stop-color="white" stop-opacity="0"/>
+<stop offset="0.394857" stop-color="white"/>
+<stop offset="0.666471" stop-color="#E6E6E6"/>
+<stop offset="0.711538" stop-color="#F0F1F6"/>
+<stop offset="1" stop-color="#F0F1F6" stop-opacity="0"/>
+</linearGradient>
+<linearGradient id="paint2_linear_0_52" x1="87.0662" y1="102.307" x2="87.0662" y2="118.729" gradientUnits="userSpaceOnUse">
+<stop stop-color="white" stop-opacity="0"/>
+<stop offset="0.394857" stop-color="white"/>
+<stop offset="0.666471" stop-color="#E6E6E6"/>
+<stop offset="0.711538" stop-color="#F0F1F6"/>
+<stop offset="1" stop-color="#F0F1F6" stop-opacity="0"/>
+</linearGradient>
+<radialGradient id="paint3_radial_0_52" cx="0" cy="0" r="1" gradientUnits="userSpaceOnUse" gradientTransform="translate(87.0662 64.5796) scale(144.793 96.9574)">
+<stop offset="0.750124" stop-color="#E6E6E6" stop-opacity="0"/>
+<stop offset="1" stop-color="#CAD3D6"/>
+</radialGradient>
+<path id="stroke0_0_52" d="M0.0275435 12.461C-0.431768 5.72045 4.91215 0 11.6683 0H63.5713C66.6517 0 69.607 1.2181 71.7928 3.38859L84.0006 15.5113C86.1732 17.6687 89.1067 18.8857 92.1685 18.8998L162.372 19.2224C169.162 19.2536 174.491 25.0533 173.949 31.8216L167.013 118.423C166.527 124.486 161.465 129.159 155.382 129.159H18.8793C12.7432 129.159 7.6557 124.407 7.23854 118.285L0.0275435 12.461Z"/>
+</defs>
+</svg>
