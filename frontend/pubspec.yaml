@@ -34,6 +34,12 @@ flutter:
     - assets/images/profiles/
     - assets/images/places/
     - assets/icons/live_map/
+    - assets/poke/
+    - assets/poke/icons/
+    - assets/poke/stickers/
+    - assets/poke/cards/
+    - assets/poke/cards/flower/
+    - assets/poke/cards/music/
 
   fonts:
     - family: Pretendard
@@ -51,3 +57,7 @@ flutter:
     - family: MatrixSansScreen
       fonts:
         - asset: assets/fonts/MatrixSansScreen-Regular.ttf
+    # 콕 찌르기 쪽지 글씨. 라이선스는 assets/fonts/BMKkubulim-LICENSE.txt
+    - family: BMKkubulim
+      fonts:
+        - asset: assets/fonts/BMKkubulim.otf
