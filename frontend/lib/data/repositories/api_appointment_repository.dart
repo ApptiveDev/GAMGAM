@@ -15,6 +15,13 @@ class ApiAppointmentRepository extends MockAppointmentRepository {
 
   final ApiClient client;
 
+  /// 화면은 [me]의 id로 나를 찾으므로 id는 목업 그대로 두고, 이름만 로그인한 사용자로 바꾼다.
+  @override
+  Participant get me {
+    final user = client.user;
+    return user == null ? super.me : Participant(id: super.me.id, name: user.name);
+  }
+
   /// 방 생성·초대 API가 붙기 전까지 로컬 서버가 제공하는 방은 이것 하나뿐이다.
   static const demoRoomId = 'demo-room';
 
