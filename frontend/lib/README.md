@@ -50,7 +50,8 @@ lib/
 - **경로 문자열 직접 쓰지 않기** → `AppRoutes.room(id)` 처럼 `app_routes.dart` 사용.
 - **색·간격 하드코딩 대신 `AppColors`** 사용. 포인트 컬러(`AppColors.point`)는 CTA·카운트다운·선택 상태에만.
 - **화면은 `AppointmentRepository`만 안다.** `context.watch<AppointmentRepository>()`로 읽고, 쓰기는 `context.read`로.
-  백엔드 API가 나오면 `ApiAppointmentRepository`를 만들어 `app.dart`에서 교체하면 된다.
+  기본 구현 `ApiAppointmentRepository`는 서버에 있는 기능(약속 목록·상세, 시간·장소 투표, 후보 추가, 초대 참여)만 서버로 보내고,
+  그룹·이름 바꾸기·투표 종료·벌칙은 아직 목업이 맡는다. 표 현황은 약속 응답이 아니라 `GET /votes`에서 읽는다.
 - **당일 위치는 `LiveLocationRepository`만 안다.** 목업은 1초 = 1분으로 흘러가는 시뮬레이션(약속 42분 전 → 약 1분 뒤 전원 도착).
   위치 저장·실시간 구독(WebSocket)·푸시가 나오면 구현체만 교체한다. 콕 찌르기 쿨다운(5분)은 실제 시간으로 센다.
 - **지도는 `LiveMapView` 안에서만.** 지금은 flutter_map + OpenStreetMap 공개 타일(개발용). 카카오맵 등으로 바꿀 때 이 파일만 고친다.

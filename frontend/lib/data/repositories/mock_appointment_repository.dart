@@ -1,5 +1,7 @@
 import 'dart:math';
 
+import 'package:flutter/foundation.dart';
+
 import '../mock/mock_data.dart';
 import '../models/appointment.dart';
 import '../models/decision_template.dart';
@@ -113,18 +115,18 @@ class MockAppointmentRepository extends AppointmentRepository {
   @override
   Future<void> rename(String appointmentId, String name) async {
     await Future.delayed(_latency);
-    _update(appointmentId, (a) => a.copyWith(name: name));
+    update(appointmentId, (a) => a.copyWith(name: name));
   }
 
   @override
   Future<void> join(String appointmentId) async {
     await Future.delayed(_latency);
-    _update(appointmentId, (a) => a.hasMember(me.id) ? a : a.copyWith(participants: [...a.participants, me]));
+    update(appointmentId, (a) => a.hasMember(me.id) ? a : a.copyWith(participants: [...a.participants, me]));
   }
 
   @override
   Future<void> voteTimes(String appointmentId, Set<String> optionIds) async {
-    _update(appointmentId, (a) => a.copyWith(timeOptions: [
+    update(appointmentId, (a) => a.copyWith(timeOptions: [
           for (final o in a.timeOptions)
             o.copyWith(voterIds: [...o.voterIds.where((id) => id != me.id), if (optionIds.contains(o.id)) me.id]),
         ]));
@@ -132,7 +134,7 @@ class MockAppointmentRepository extends AppointmentRepository {
 
   @override
   Future<void> votePlace(String appointmentId, String optionId) async {
-    _update(appointmentId, (a) => a.copyWith(
+    update(appointmentId, (a) => a.copyWith(
           placeOptions: [
             for (final o in a.placeOptions)
               o.copyWith(voterIds: [
@@ -148,21 +150,21 @@ class MockAppointmentRepository extends AppointmentRepository {
 
   @override
   Future<void> clearMyPlaceVotes(String appointmentId) async {
-    _update(appointmentId, (a) => a.copyWith(placeOptions: [
+    update(appointmentId, (a) => a.copyWith(placeOptions: [
           for (final o in a.placeOptions) o.copyWith(voterIds: o.voterIds.where((id) => id != me.id).toList()),
         ]));
   }
 
   @override
   Future<void> addTimeOption(String appointmentId, DateTime time) async {
-    _update(appointmentId, (a) => a.copyWith(
+    update(appointmentId, (a) => a.copyWith(
           timeOptions: [...a.timeOptions, TimeOption(id: 't${a.timeOptions.length}-${time.millisecondsSinceEpoch}', value: time)],
         ));
   }
 
   @override
   Future<void> addPlaceOption(String appointmentId, Place place) async {
-    _update(appointmentId, (a) => a.placeOptions.any((o) => o.value.name == place.name)
+    update(appointmentId, (a) => a.placeOptions.any((o) => o.value.name == place.name)
         ? a
         : a.copyWith(placeOptions: [...a.placeOptions, PlaceOption(id: 'p${a.placeOptions.length}-${place.name.hashCode}', value: place)]));
   }
@@ -170,13 +172,13 @@ class MockAppointmentRepository extends AppointmentRepository {
   @override
   Future<void> closeTimeVote(String appointmentId) async {
     await Future.delayed(_latency);
-    _update(appointmentId, (a) => _settle(a.copyWith(confirmedTime: a.time)));
+    update(appointmentId, (a) => _settle(a.copyWith(confirmedTime: a.time)));
   }
 
   @override
   Future<void> closePlaceVote(String appointmentId) async {
     await Future.delayed(_latency);
-    _update(appointmentId, (a) => _settle(a.copyWith(confirmedPlace: a.place)));
+    update(appointmentId, (a) => _settle(a.copyWith(confirmedPlace: a.place)));
   }
 
   /// 시간·장소가 모두 정해졌으면 약속을 확정한다.
@@ -186,7 +188,7 @@ class MockAppointmentRepository extends AppointmentRepository {
   @override
   Future<void> setPenalty(String appointmentId, {required String penalty, required int lateThresholdMinutes}) async {
     await Future.delayed(_latency);
-    _update(appointmentId, (a) => a.copyWith(
+    update(appointmentId, (a) => a.copyWith(
           penalty: penalty,
           lateThresholdMinutes: lateThresholdMinutes,
           // 벌칙을 바꾸면 동의를 처음부터 다시 받는다. 정한 사람은 동의한 것으로 본다.
@@ -197,17 +199,30 @@ class MockAppointmentRepository extends AppointmentRepository {
   @override
   Future<void> confirm(String appointmentId) async {
     await Future.delayed(_latency);
-    _update(appointmentId, (a) => a.copyWith(status: AppointmentStatus.confirmed, confirmedTime: a.time, confirmedPlace: a.place));
+    update(appointmentId, (a) => a.copyWith(status: AppointmentStatus.confirmed, confirmedTime: a.time, confirmedPlace: a.place));
   }
 
   @override
   Future<void> complete(String appointmentId, {required int lateCount}) async {
     await Future.delayed(_latency);
-    _update(appointmentId, (a) => a.copyWith(status: AppointmentStatus.completed, lateCount: lateCount));
+    update(appointmentId, (a) => a.copyWith(status: AppointmentStatus.completed, lateCount: lateCount));
+  }
+
+  @override
+  Future<void> refresh(String appointmentId) async {}
+
+  @override
+  Future<Appointment> joinByInviteCode(String code) async {
+    final a = findByInviteCode(code);
+    if (a == null) throw StateError('초대 코드 $code를 찾을 수 없어요');
+    await join(a.id);
+    return _items[a.id]!;
   }
 
   /// 서버에서 받은 약속을 기존 목업 상태에 합친다.
-  /// 서버가 아직 모르는 값(그룹, 썸네일, 참여자, 투표 현황)은 앱에 있던 값을 그대로 둔다.
+  /// 서버가 아직 모르는 값(그룹, 썸네일, 벌칙)은 앱에 있던 값을 그대로 둔다.
+  /// 표 현황은 약속 응답에 없어서, 같은 후보에 있던 표를 남겨 두고 투표 API를 읽을 때 바꾼다.
+  @protected
   void mergeServerAppointments(Iterable<Appointment> appointments) {
     for (final server in appointments) {
       final local = _items[server.id];
@@ -217,14 +232,14 @@ class MockAppointmentRepository extends AppointmentRepository {
               id: server.id,
               name: server.name,
               template: server.template,
-              hostId: local.hostId,
-              inviteCode: local.inviteCode,
-              participants: local.participants,
+              hostId: server.hostId,
+              inviteCode: server.inviteCode,
+              participants: server.participants,
               status: server.status,
-              timeOptions: local.timeOptions.isEmpty ? server.timeOptions : local.timeOptions,
-              placeOptions: local.placeOptions.isEmpty ? server.placeOptions : local.placeOptions,
-              confirmedTime: server.confirmedTime ?? local.confirmedTime,
-              confirmedPlace: server.confirmedPlace ?? local.confirmedPlace,
+              timeOptions: _keepVoters(server.timeOptions, local.timeOptions),
+              placeOptions: _keepVoters(server.placeOptions, local.placeOptions),
+              confirmedTime: server.confirmedTime,
+              confirmedPlace: server.confirmedPlace,
               penalty: local.penalty,
               lateThresholdMinutes: local.lateThresholdMinutes,
               penaltyAgreedIds: local.penaltyAgreedIds,
@@ -237,7 +252,19 @@ class MockAppointmentRepository extends AppointmentRepository {
     notifyListeners();
   }
 
-  void _update(String id, Appointment Function(Appointment) change) {
+  static List<VoteOption<T>> _keepVoters<T>(List<VoteOption<T>> server, List<VoteOption<T>> local) => [
+        for (final o in server) o.copyWith(voterIds: local.where((l) => l.id == o.id).firstOrNull?.voterIds),
+      ];
+
+  /// 다른 계정으로 로그인했을 때 이전 계정의 서버 약속을 지운다.
+  @protected
+  void removeAppointments(Iterable<String> ids) {
+    ids.forEach(_items.remove);
+    notifyListeners();
+  }
+
+  @protected
+  void update(String id, Appointment Function(Appointment) change) {
     final current = _items[id];
     if (current == null) return;
     _items[id] = change(current);

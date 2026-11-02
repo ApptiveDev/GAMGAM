@@ -13,6 +13,7 @@ import '../../core/widgets/gam/gam_icon.dart';
 import '../../core/widgets/gam/member_avatars.dart';
 import '../../core/widgets/gam/photo_card.dart';
 import '../../core/widgets/gam/pink_frame.dart';
+import '../../data/api/api_error_message.dart';
 import '../../data/mock/mock_data.dart';
 import '../../data/models/appointment.dart';
 import '../../data/models/place.dart';
@@ -44,6 +45,25 @@ class _AppointmentPageState extends State<AppointmentPage> {
 
   /// 추천 장소 "새로고침" 할 때마다 다음 묶음을 보여준다.
   var _recommendPage = 0;
+
+  @override
+  void initState() {
+    super.initState();
+    // 다른 사람이 올린 후보·표를 보려고 열 때마다 서버를 다시 읽는다. 실패하면 갖고 있던 값을 그대로 보여 준다.
+    context.read<AppointmentRepository>().refresh(widget.appointmentId).catchError((_) {});
+  }
+
+  /// 서버에 보낸 요청이 실패하면 아래에 안내를 띄운다.
+  Future<void> _guard(Future<void> Function() action) async {
+    try {
+      await action();
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context)
+        ..hideCurrentSnackBar()
+        ..showSnackBar(SnackBar(content: Text(apiErrorMessage(e))));
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -121,12 +141,13 @@ class _AppointmentPageState extends State<AppointmentPage> {
       selected: _pickedTimes,
       onSelect: (id) => setState(() => _pickedTimes.contains(id) ? _pickedTimes.remove(id) : _pickedTimes.add(id)),
       onVote: () {
-        repo.voteTimes(a.id, {..._pickedTimes});
+        final picked = {..._pickedTimes};
         setState(_pickedTimes.clear);
+        _guard(() => repo.voteTimes(a.id, picked));
       },
       onAdd: () => _addTime(a),
       onClose: () => _close(a, time: true),
-      onRevote: () => repo.clearMyTimeVotes(a.id),
+      onRevote: () => _guard(() => repo.clearMyTimeVotes(a.id)),
       pendingVoters: a.pendingVotersOf(a.timeOptions),
       participantCount: a.participants.length,
     );
@@ -151,12 +172,13 @@ class _AppointmentPageState extends State<AppointmentPage> {
       selected: {if (_pickedPlace != null) _pickedPlace!},
       onSelect: (id) => setState(() => _pickedPlace = id),
       onVote: () {
-        repo.votePlace(a.id, _pickedPlace!);
+        final picked = _pickedPlace!;
         setState(() => _pickedPlace = null);
+        _guard(() => repo.votePlace(a.id, picked));
       },
       onAdd: () => context.push(AppRoutes.pickPlace(a.id)),
       onClose: () => _close(a, time: false),
-      onRevote: () => repo.clearMyPlaceVotes(a.id),
+      onRevote: () => _guard(() => repo.clearMyPlaceVotes(a.id)),
       pendingVoters: a.pendingVotersOf(a.placeOptions),
       participantCount: a.participants.length,
     );
@@ -206,13 +228,17 @@ class _AppointmentPageState extends State<AppointmentPage> {
   Future<void> _addTime(Appointment a) async {
     final time = await showTimeSheet(context);
     if (time == null || !mounted) return;
-    await context.read<AppointmentRepository>().addTimeOption(a.id, time);
+    final repo = context.read<AppointmentRepository>();
+    await _guard(() => repo.addTimeOption(a.id, time));
   }
 
   Future<void> _addPlace(Appointment a, Place place) async {
-    await context.read<AppointmentRepository>().addPlaceOption(a.id, place);
-    if (!mounted) return;
-    ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('${place.name}을(를) 후보에 올렸어요')));
+    final repo = context.read<AppointmentRepository>();
+    await _guard(() async {
+      await repo.addPlaceOption(a.id, place);
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('${place.name}을(를) 후보에 올렸어요')));
+    });
   }
 
   Future<void> _close(Appointment a, {required bool time}) async {

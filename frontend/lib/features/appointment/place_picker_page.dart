@@ -6,6 +6,7 @@ import '../../core/theme/gam_colors.dart';
 import '../../core/theme/gam_text.dart';
 import '../../core/widgets/gam/gam_icon.dart';
 import '../../core/widgets/gam/pink_frame.dart';
+import '../../data/api/api_error_message.dart';
 import '../../data/mock/mock_data.dart';
 import '../../data/models/place.dart';
 import '../../data/repositories/appointment_repository.dart';
@@ -174,10 +175,16 @@ class _PlacePickerPageState extends State<PlacePickerPage> {
   }
 
   Future<void> _add(Place place) async {
-    await context.read<AppointmentRepository>().addPlaceOption(widget.appointmentId, place);
+    String message;
+    try {
+      await context.read<AppointmentRepository>().addPlaceOption(widget.appointmentId, place);
+      message = '${place.name}을(를) 후보에 올렸어요';
+    } catch (e) {
+      message = apiErrorMessage(e);
+    }
     if (!mounted) return;
     ScaffoldMessenger.of(context)
       ..hideCurrentSnackBar()
-      ..showSnackBar(SnackBar(content: Text('${place.name}을(를) 후보에 올렸어요')));
+      ..showSnackBar(SnackBar(content: Text(message)));
   }
 }

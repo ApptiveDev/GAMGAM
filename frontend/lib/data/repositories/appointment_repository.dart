@@ -48,6 +48,12 @@ abstract class AppointmentRepository extends ChangeNotifier {
 
   Future<void> join(String appointmentId);
 
+  /// 앱에 아직 없는 약속에 초대 코드로 들어간다. 서버에는 초대 코드로 미리보기하는 API가 없다.
+  Future<Appointment> joinByInviteCode(String code);
+
+  /// 약속 상세를 열 때 서버의 최신 상태(참여자, 후보, 표 현황)를 다시 읽는다.
+  Future<void> refresh(String appointmentId);
+
   /// 투표하기. 시간은 여러 개, 장소는 한 곳만 고른다.
   Future<void> voteTimes(String appointmentId, Set<String> optionIds);
   Future<void> votePlace(String appointmentId, String optionId);
