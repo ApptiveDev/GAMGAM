@@ -2,6 +2,13 @@
 ///
 /// 웹에서도 같은 주소로 열리므로 초대 링크(/invite/:code)가 그대로 딥링크가 된다.
 abstract final class AppRoutes {
+  // 로그인. [from]이 있으면 로그인한 뒤 그 주소로 돌아간다(초대 링크).
+  static const login = '/login';
+  static const signup = '/signup';
+  static String loginFrom(String? from) => _withFrom(login, from);
+  static String signupFrom(String? from) => _withFrom(signup, from);
+  static String _withFrom(String path, String? from) => from == null ? path : '$path?from=${Uri.encodeComponent(from)}';
+
   // 하단 탭
   static const home = '/';
   static const groups = '/groups';
