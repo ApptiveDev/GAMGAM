@@ -16,6 +16,7 @@ import com.gamgam.backend.appointment.repository.PenaltyAgreementRepository;
 import com.gamgam.backend.appointment.entity.PenaltyAgreement;
 import com.gamgam.backend.appointment.vo.AppointmentMemberRole;
 import com.gamgam.backend.appointment.vo.AppointmentStatus;
+import com.gamgam.backend.appointment.vo.AppointmentTemplate;
 import com.gamgam.backend.appointment.vo.LocationSharingPolicy;
 import com.gamgam.backend.appointment.vo.PenaltyRule;
 import com.gamgam.backend.appointment.vo.Place;
@@ -60,7 +61,8 @@ public class AppointmentService {
         RewardRule reward = request.reward() == null ? null : request.reward().toDomain();
         LocationSharingPolicy sharing = request.locationSharing() == null
                 ? LocationSharingPolicy.defaults() : request.locationSharing().toDomain();
-        AppointmentStatus status = request.template().isFullyDecided()
+        AppointmentTemplate template = request.template() == null ? AppointmentTemplate.BOTH : request.template();
+        AppointmentStatus status = template.isFullyDecided()
                 ? AppointmentStatus.CONFIRMED : AppointmentStatus.COORDINATING;
 
         Appointment appointment = repository.save(Appointment.builder()
@@ -69,7 +71,7 @@ public class AppointmentService {
                 .roomId(roomId)
                 .hostId(userId)
                 .inviteCode(generateInviteCode())
-                .template(request.template())
+                .template(template)
                 .candidatesTime(KstTimeConverter.toUtc(request.candidatesTime()))
                 .confirmedTime(KstTimeConverter.toUtc(request.confirmedTime()))
                 .candidatesPlace(toDomainPlaces(request.candidatesPlace()))

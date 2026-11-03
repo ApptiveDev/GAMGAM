@@ -23,7 +23,7 @@ import java.util.List;
 
 public record CreateAppointmentRequest(
         @NotBlank @Size(max = 50) String name,
-        @NotNull AppointmentTemplate template,
+        AppointmentTemplate template,
         List<@NotNull @Future OffsetDateTime> candidatesTime,
         @Future OffsetDateTime confirmedTime,
         List<@NotNull @Valid PlaceRequest> candidatesPlace,
@@ -44,7 +44,7 @@ public record CreateAppointmentRequest(
     @AssertTrue(message = "confirmedTime is required unless the template coordinates time")
     public boolean isConfirmedTimeConsistent() {
         if (template == null) {
-            return true;
+            return confirmedTime == null;
         }
         if (template.coordinatesTime()) {
             return confirmedTime == null;
@@ -63,7 +63,7 @@ public record CreateAppointmentRequest(
     @AssertTrue(message = "candidatesTime must have at least 2 options when coordinating time, and must be empty otherwise")
     public boolean isCandidatesTimeConsistent() {
         if (template == null) {
-            return true;
+            return candidatesTime == null || candidatesTime.isEmpty();
         }
         return isCandidateListConsistent(candidatesTime, template.coordinatesTime());
     }
@@ -76,7 +76,7 @@ public record CreateAppointmentRequest(
     @AssertTrue(message = "confirmedPlace is required unless the template coordinates place")
     public boolean isConfirmedPlaceConsistent() {
         if (template == null) {
-            return true;
+            return confirmedPlace == null;
         }
         if (template.coordinatesPlace()) {
             return confirmedPlace == null;
@@ -91,7 +91,7 @@ public record CreateAppointmentRequest(
     @AssertTrue(message = "candidatesPlace must have at least 2 options when coordinating place, and must be empty otherwise")
     public boolean isCandidatesPlaceConsistent() {
         if (template == null) {
-            return true;
+            return candidatesPlace == null || candidatesPlace.isEmpty();
         }
         return isCandidateListConsistent(candidatesPlace, template.coordinatesPlace());
     }
