@@ -129,21 +129,24 @@ class _GroupGrid extends StatelessWidget {
     final rows = <List<Group>>[
       for (var i = 0; i < groups.length; i += 2) groups.sublist(i, (i + 2).clamp(0, groups.length)),
     ];
-    // 폴더 두 개(149 + 20 + 149)를 한 묶음으로 화면 가운데에 둔다.
+    // 폴더 두 개(149 + 20 + 149)를 한 묶음으로 화면 가운데에 둔다. 360 폭 폰처럼 좁으면 통째로 줄인다.
     return Center(
-      child: SizedBox(
-        width: 318,
-        child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-          for (final (i, row) in rows.indexed) ...[
-            if (i > 0) const SizedBox(height: 40),
-            Row(crossAxisAlignment: CrossAxisAlignment.end, children: [
-              for (final (j, g) in row.indexed) ...[
-                if (j > 0) const SizedBox(width: 20),
-                _GroupTile(group: g),
-              ],
-            ]),
-          ],
-        ]),
+      child: FittedBox(
+        fit: BoxFit.scaleDown,
+        child: SizedBox(
+          width: 318,
+          child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+            for (final (i, row) in rows.indexed) ...[
+              if (i > 0) const SizedBox(height: 40),
+              Row(crossAxisAlignment: CrossAxisAlignment.end, children: [
+                for (final (j, g) in row.indexed) ...[
+                  if (j > 0) const SizedBox(width: 20),
+                  _GroupTile(group: g),
+                ],
+              ]),
+            ],
+          ]),
+        ),
       ),
     );
   }

@@ -6,17 +6,21 @@ import 'package:provider/provider.dart';
 import 'core/router/app_router.dart';
 import 'core/theme/app_theme.dart';
 import 'data/api/api_client.dart';
+import 'data/api/auth_controller.dart';
 import 'data/repositories/appointment_repository.dart';
 import 'data/repositories/api_appointment_repository.dart';
 import 'data/repositories/live_location_repository.dart';
 import 'data/repositories/api_live_location_repository.dart';
 
 class GamgamApp extends StatefulWidget {
-  const GamgamApp({super.key, this.repository, this.liveRepository, this.initialLocation});
+  const GamgamApp({super.key, this.repository, this.liveRepository, this.auth, this.initialLocation});
 
   /// 테스트에서 다른 구현체를 넣는다. 기본값은 서버를 읽고, 서버에 없는 기능은 목업으로 채우는 구현체.
   final AppointmentRepository? repository;
   final LiveLocationRepository? liveRepository;
+
+  /// 넣지 않으면 서버 저장소일 때만 로그인을 요구하고, 목업 저장소면 로그인 없이 연다.
+  final AuthController? auth;
   final String? initialLocation;
 
   @override
@@ -26,7 +30,30 @@ class GamgamApp extends StatefulWidget {
 class _GamgamAppState extends State<GamgamApp> {
   late final AppointmentRepository _repository = widget.repository ?? ApiAppointmentRepository();
   late final LiveLocationRepository _liveRepository = widget.liveRepository ?? _apiLiveRepository();
-  late final GoRouter _router = widget.initialLocation == null ? createRouter() : createRouter(initialLocation: widget.initialLocation!);
+  late final AuthController _auth = widget.auth ?? _defaultAuth();
+  late final GoRouter _router =
+      widget.initialLocation == null ? createRouter(auth: _auth) : createRouter(auth: _auth, initialLocation: widget.initialLocation!);
+  String? _loadedUserId;
+
+  AuthController _defaultAuth() {
+    final repository = _repository;
+    return repository is ApiAppointmentRepository ? AuthController(repository.client) : AuthController.offline();
+  }
+
+  @override
+  void initState() {
+    super.initState();
+    _auth.addListener(_reloadForUser);
+  }
+
+  /// 처음 켤 때는 로그인 전이라 서버 약속을 못 읽는다. 로그인한 사용자가 바뀌면 다시 읽는다.
+  void _reloadForUser() {
+    final repository = _repository;
+    final userId = _auth.user?.id;
+    if (userId == null || userId == _loadedUserId || repository is! ApiAppointmentRepository) return;
+    _loadedUserId = userId;
+    repository.load();
+  }
 
   /// 약속 저장소와 같은 로그인(토큰)을 쓴다.
   LiveLocationRepository _apiLiveRepository() {
@@ -38,6 +65,8 @@ class _GamgamAppState extends State<GamgamApp> {
   @override
   void dispose() {
     _router.dispose();
+    _auth.removeListener(_reloadForUser);
+    if (widget.auth == null) _auth.dispose();
     // 직접 만든 목업만 정리한다. 밖에서 넣어준 구현체는 넣어준 쪽이 정리한다.
     if (widget.liveRepository == null) _liveRepository.dispose();
     super.dispose();
@@ -46,6 +75,7 @@ class _GamgamAppState extends State<GamgamApp> {
   @override
   Widget build(BuildContext context) => MultiProvider(
         providers: [
+          ChangeNotifierProvider<AuthController>.value(value: _auth),
           ChangeNotifierProvider<AppointmentRepository>.value(value: _repository),
           ChangeNotifierProvider<LiveLocationRepository>.value(value: _liveRepository),
         ],

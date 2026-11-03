@@ -1,9 +1,12 @@
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 
+import '../../data/api/auth_controller.dart';
 import '../../features/appointment/appointment_page.dart';
 import '../../features/appointment/place_picker_page.dart';
 import '../../features/arrival/arrival_page.dart';
+import '../../features/auth/login_page.dart';
+import '../../features/auth/signup_page.dart';
 import '../../features/confirmed/confirmed_page.dart';
 import '../../features/create/name_entry_page.dart';
 import '../../features/group/group_page.dart';
@@ -19,9 +22,14 @@ import '../../features/shell/main_shell.dart';
 import '../theme/app_theme.dart';
 import 'app_routes.dart';
 
-GoRouter createRouter({String initialLocation = AppRoutes.home}) => GoRouter(
+GoRouter createRouter({required AuthController auth, String initialLocation = AppRoutes.home}) => GoRouter(
       initialLocation: initialLocation,
+      refreshListenable: auth,
+      redirect: (_, state) => _authRedirect(auth, state),
       routes: [
+        GoRoute(path: AppRoutes.login, pageBuilder: (_, state) => _fade(state, LoginPage(from: state.uri.queryParameters['from']))),
+        GoRoute(path: AppRoutes.signup, pageBuilder: (_, state) => _fade(state, SignupPage(from: state.uri.queryParameters['from']))),
+
         // 하단 탭 3개. 탭마다 스택이 따로 유지된다.
         StatefulShellRoute.indexedStack(
           builder: (context, state, shell) => MainShell(shell: shell),
@@ -68,6 +76,20 @@ GoRouter createRouter({String initialLocation = AppRoutes.home}) => GoRouter(
       ],
       errorBuilder: (context, state) => const _Legacy(_NotFoundPage()),
     );
+
+/// 로그인하지 않았으면 로그인 화면으로, 로그인했는데 로그인 화면이면 홈(또는 초대 링크)으로 보낸다.
+String? _authRedirect(AuthController auth, GoRouterState state) {
+  final path = state.matchedLocation;
+  final atAuth = path == AppRoutes.login || path == AppRoutes.signup;
+  if (!auth.isLoggedIn) {
+    if (atAuth) return null;
+    // 초대 링크로 들어왔으면 로그인한 뒤 그 초대 화면으로 돌아간다.
+    return AppRoutes.loginFrom(path.startsWith('/invite/') ? state.uri.toString() : null);
+  }
+  if (!atAuth) return null;
+  final from = state.uri.queryParameters['from'];
+  return from != null && from.startsWith('/invite/') ? from : AppRoutes.home;
+}
 
 /// 이름 입력처럼 배경이 같은 화면은 밀지 않고 겹쳐서 바꾼다.
 CustomTransitionPage<void> _fade(GoRouterState state, Widget child) => CustomTransitionPage(

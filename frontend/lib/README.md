@@ -14,6 +14,7 @@ lib/
 │  ├─ repositories/            AppointmentRepository · LiveLocationRepository(인터페이스) + Mock 구현
 │  └─ mock/                    와이어프레임 목업 데이터
 └─ features/                   화면 = 폴더 하나. 그 화면에서만 쓰는 위젯은 features/<화면>/widgets/
+   ├─ auth/                    로그인 · 회원가입
    ├─ shell/                   하단 탭 (홈 / 기록 / 내정보)
    ├─ home/                    01 홈
    ├─ appointment_create/      02 템플릿 + 시간·장소 입력 (+ draft 컨트롤러)
@@ -31,6 +32,8 @@ lib/
 
 | 경로 | 화면 | 비고 |
 |---|---|---|
+| `/login` | 로그인 | 로그인 안 했으면 모든 경로가 여기로 온다. 초대 링크로 왔으면 `?from=`으로 로그인 뒤 돌아간다 |
+| `/signup` | 회원가입 | 가입하면 바로 로그인해서 홈으로 |
 | `/` · `/records` · `/profile` | 하단 탭 | `StatefulShellRoute` — 탭마다 스택 유지 |
 | `/appointments/new` | 02 템플릿 + 이름 | 생성 플로우는 `ShellRoute`로 묶여 draft를 공유 |
 | `/appointments/new/details` | 시간·장소 입력 | "방 만들기" → 투표 있으면 방, 없으면 벌칙으로 |
