@@ -61,10 +61,17 @@ class CreateAppointmentRequestValidationTests {
     }
 
     @Test
-    void 템플릿이_null이면_template만_실패하고_일관성_검사는_중복_에러를_내지_않는다() {
+    void 이름만_입력하면_빈_시간과_장소로_생성할_수_있다() {
         var req = new CreateAppointmentRequest("모임", null, null, null, null, null, null, null, null);
 
-        assertThat(violatedProperties(req)).containsExactly("template");
+        assertThat(violatedProperties(req)).isEmpty();
+    }
+
+    @Test
+    void 템플릿을_생략할_때_시간이나_장소를_함께_지정할_수_없다() {
+        var req = new CreateAppointmentRequest("모임", null, null, future(3), null, null, null, null, null);
+
+        assertThat(violatedProperties(req)).contains("confirmedTimeConsistent");
     }
 
     // ---------- 시간 ----------

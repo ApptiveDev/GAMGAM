@@ -37,17 +37,30 @@ Windows PowerShell에서 다음을 실행합니다.
 
 ## 약속 API
 
+### 그룹(방) 생성
+
+인증 토큰(`Authorization: Bearer <accessToken>`)을 사용합니다.
+
+| Method | Path | 설명 |
+| --- | --- | --- |
+| POST | `/api/v1/rooms` | `{"name":"앱티브"}`로 그룹 생성, HTTP 201 |
+| GET | `/api/v1/rooms` | 내가 속한 그룹 목록 |
+| GET | `/api/v1/rooms/{roomId}` | 그룹 상세, 비멤버는 403 |
+
+그룹 이름은 공백을 제외해 1~50자이며, 생성자는 즉시 멤버로 저장됩니다. 생성 응답의 `data.id`를 약속 생성 경로의 `roomId`로 사용합니다. 그룹 멤버 초대·가입은 아직 구현되지 않았습니다.
+
+UI처럼 약속 이름만 정하는 경우에는 `POST /api/v1/rooms/{roomId}/appointments`에 `{"name":"토요일 등산"}`을 보내면 됩니다. 시간·장소 후보가 비어 있는 `BOTH` 템플릿의 `COORDINATING` 약속이 생성되고, 생성자는 호스트가 됩니다. 이후 기존 후보 추가·투표 API로 시간과 장소를 정할 수 있습니다.
+
 ### 약속 생성
 
 `POST /api/v1/rooms/{roomId}/appointments`
 
-방 멤버가 방 ID와 약속 이름, 템플릿, 시간·장소 정보를 전달하면 해당 방에 약속을 생성하고 공유 링크를 함께 반환합니다.
-생성 성공 시 HTTP 201을 반환합니다. 로그인·참여자 연동 전이라 약속 생성자는 저장하지 않습니다.
+방 멤버가 방 ID와 약속 이름을 전달하면 해당 방에 약속을 생성하고 공유 링크를 함께 반환합니다. 생성 성공 시 HTTP 201을 반환하며, 생성자는 호스트로 저장됩니다. 고급 생성 요청에서는 템플릿과 시간·장소 정보를 함께 전달할 수 있습니다.
 
 | 필드 | 필수 | 규칙 |
 | --- | --- | --- |
 | `name` | 예 | 공백 불가, 최대 50자 |
-| `template` | 예 | `ALL`, `TIME_ONLY`, `PLACE_ONLY`, `BOTH` |
+| `template` | 아니오 | 생략하면 `BOTH`, 또는 `ALL`, `TIME_ONLY`, `PLACE_ONLY` |
 | `candidatesTime` | 템플릿에 따라 | 미래 시각 목록 |
 | `confirmedTime` | 템플릿에 따라 | 미래 시각 |
 | `candidatesPlace` | 템플릿에 따라 | 장소 목록 |
@@ -56,7 +69,7 @@ Windows PowerShell에서 다음을 실행합니다.
 | `reward` | 아니오 | 보상 |
 | `locationSharing` | 아니오 | 위치 공유 시간 설정 |
 
-`template`에 따라 시간·장소를 확정값으로 받을지, 후보 목록으로 받을지가 달라집니다.
+`template`을 생략한 이름만 있는 요청은 시간·장소를 비워 둡니다. 템플릿을 지정한 요청은 아래 규칙을 따릅니다.
 조율 대상이면 후보를 2개 이상 보내고 확정값은 비워 둡니다. 이미 정해진 항목이면 확정값을 보내고 후보는 비워 둡니다.
 
 | 템플릿 | 설명 | 시간 | 장소 | 초기 상태 |
@@ -142,21 +155,9 @@ $created | ConvertTo-Json -Depth 5
 Invoke-RestMethod -Uri "http://localhost:8080/api/v1/appointments/$($created.data.id)" | ConvertTo-Json -Depth 5
 ```
 
-### 방 담당자와의 연결 범위
+### 그룹 멤버십
 
-실제 방 생성, 초대 링크 발급/검증, 방 가입은 아직 구현하지 않았습니다. 지도용 `MockRoomRepository`를 실제 방 멤버십으로 사용하지 않습니다.
-방 담당자는 `room/RoomAccess.requireMember(roomId, userId)`를 실제 방 조회로 구현하면 됩니다.
-없는 방은 `ROOM_NOT_FOUND`, 비멤버는 `ROOM_ACCESS_DENIED`로 거부하는 계약입니다.
-운영용 `UnavailableRoomAccess`를 실제 구현으로 교체해야 하며, 연결 전에는 HTTP 503 `ROOM_INTEGRATION_UNAVAILABLE`을 반환합니다.
-
-로컬 프로필에서는 `LocalRoomAccess`가 **`demo-room` 하나만** 제공합니다. 멤버는 `u-yeeun`, `u-doyun`, `u-seoa`, `u-minjun`, `u-harin`입니다.
-시드 약속 `demo-hongdae`(투표 가능), `demo-seongsu`(이미 확정)는 이 방에 연결됩니다.
-사용자는 로컬에서만 `X-User-Id` 헤더로 선택할 수 있으며 생략 시 `u-yeeun`입니다.
-운영에서는 이 헤더를 사용하지 않고 인증된 요청의 `Principal.getName()`을 사용자 ID로 사용합니다. 로그인 담당자의 사용자 ID 규격과 연결해야 합니다.
-
-모든 약속은 방에 속하며 `roomId`는 필수입니다. 기존 `AppointmentController`와 `AppointmentService`에서 방별 생성·조회를 처리합니다.
-방 없이 생성하거나 전체 방의 약속을 조회하던 `POST /api/v1/appointments`, `GET /api/v1/appointments`는 제거했습니다.
-프런트엔드의 생성·목록 요청도 방 ID를 포함하는 경로로 연결해야 합니다. 방 생성·가입 API는 별도 담당 범위입니다.
+그룹과 멤버십은 DB에 저장되며 `RoomAccess.requireMember(roomId, userId)`가 방별 약속 생성·조회·투표 권한을 검사합니다. 없는 그룹은 `ROOM_NOT_FOUND`(404), 비멤버는 `ROOM_ACCESS_DENIED`(403)를 반환합니다. 로컬 프로필은 기존 테스트용 `demo-room`도 유지합니다. 지도용 `MockRoomRepository`는 그룹 멤버십에 사용하지 않습니다.
 
 ## 참여자 투표·후보 시간 및 장소 추가 API
 
