@@ -5,6 +5,7 @@ import 'package:provider/provider.dart';
 
 import 'core/router/app_router.dart';
 import 'core/theme/app_theme.dart';
+import 'data/api/api_client.dart';
 import 'data/repositories/appointment_repository.dart';
 import 'data/repositories/api_appointment_repository.dart';
 import 'data/repositories/live_location_repository.dart';
@@ -24,8 +25,15 @@ class GamgamApp extends StatefulWidget {
 
 class _GamgamAppState extends State<GamgamApp> {
   late final AppointmentRepository _repository = widget.repository ?? ApiAppointmentRepository();
-  late final LiveLocationRepository _liveRepository = widget.liveRepository ?? ApiLiveLocationRepository(meId: _repository.me.id);
+  late final LiveLocationRepository _liveRepository = widget.liveRepository ?? _apiLiveRepository();
   late final GoRouter _router = widget.initialLocation == null ? createRouter() : createRouter(initialLocation: widget.initialLocation!);
+
+  /// 약속 저장소와 같은 로그인(토큰)을 쓴다.
+  LiveLocationRepository _apiLiveRepository() {
+    final repository = _repository;
+    if (repository is! ApiAppointmentRepository) return ApiLiveLocationRepository(meId: repository.me.id, client: ApiClient());
+    return ApiLiveLocationRepository(meId: repository.me.id, client: repository.client, isServerAppointment: repository.isServerAppointment);
+  }
 
   @override
   void dispose() {
