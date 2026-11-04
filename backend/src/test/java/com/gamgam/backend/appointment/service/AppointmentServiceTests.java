@@ -42,11 +42,11 @@ class AppointmentServiceTests {
         appointments = mock(AppointmentRepository.class);
         members = mock(AppointmentMemberRepository.class);
         var votes = mock(AppointmentVoteRepository.class);
-        var voting = mock(AppointmentVotingService.class);
+
         var agreements = mock(PenaltyAgreementRepository.class);
         users = mock(UserRepository.class);
         rooms = mock(RoomAccess.class);
-        service = new AppointmentService(appointments, members, votes, voting, agreements, users,
+        service = new AppointmentService(appointments, members, votes, agreements, users,
                 new ShareLinkGenerator(new ShareProperties("http://localhost:3000")), rooms);
         user = User.builder().id("user-1").email("user@example.com").name("User").passwordHash("hash").build();
         when(users.findById("user-1")).thenReturn(Optional.of(user));

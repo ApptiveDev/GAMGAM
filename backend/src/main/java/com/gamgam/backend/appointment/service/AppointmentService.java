@@ -7,11 +7,11 @@ import com.gamgam.backend.appointment.dto.CreateAppointmentRequest;
 import com.gamgam.backend.appointment.entity.Appointment;
 import com.gamgam.backend.appointment.entity.AppointmentMember;
 import com.gamgam.backend.appointment.vo.VoteType;
-import com.gamgam.backend.appointment.dto.TimeCandidateRequest;
+
 import com.gamgam.backend.appointment.repository.AppointmentMemberRepository;
 import com.gamgam.backend.appointment.repository.AppointmentVoteRepository;
 import com.gamgam.backend.appointment.repository.AppointmentRepository;
-import java.util.Set;
+
 import com.gamgam.backend.appointment.repository.PenaltyAgreementRepository;
 import com.gamgam.backend.appointment.entity.PenaltyAgreement;
 import com.gamgam.backend.appointment.vo.AppointmentMemberRole;
@@ -45,7 +45,7 @@ public class AppointmentService {
     private final AppointmentRepository repository;
     private final AppointmentMemberRepository memberRepository;
     private final AppointmentVoteRepository voteRepository;
-    private final AppointmentVotingService voting;
+
     private final PenaltyAgreementRepository penaltyAgreementRepository;
     private final UserRepository userRepository;
     private final ShareLinkGenerator shareLinkGenerator;
@@ -137,24 +137,6 @@ public class AppointmentService {
     }
 
     @Transactional
-    public AppointmentResponse toggleTimeVote(String userId, String appointmentId, int optionIndex) {
-        voting.toggleTimeVote(appointmentId, userId, optionIndex);
-        return toResponse(repository.findById(appointmentId).orElseThrow());
-    }
-
-    @Transactional
-    public AppointmentResponse votePlace(String userId, String appointmentId, int optionIndex) {
-        voting.votePlace(appointmentId, userId, Set.of(optionIndex));
-        return toResponse(repository.findById(appointmentId).orElseThrow());
-    }
-
-    @Transactional
-    public AppointmentResponse clearPlaceVote(String userId, String appointmentId) {
-        voting.votePlace(appointmentId, userId, Set.of());
-        return toResponse(repository.findById(appointmentId).orElseThrow());
-    }
-
-    @Transactional
     public AppointmentResponse confirm(String userId, String appointmentId, ConfirmAppointmentRequest request) {
         Appointment appointment = findAccessible(userId, appointmentId);
         requireHost(appointment, userId);
@@ -169,12 +151,6 @@ public class AppointmentService {
         }
         appointment.confirm(timeIndex, placeIndex);
         return toResponse(appointment);
-    }
-
-    @Transactional
-    public AppointmentResponse addTimeOption(String userId, String appointmentId, java.time.OffsetDateTime time) {
-        voting.addTimeCandidate(appointmentId, userId, new TimeCandidateRequest(time));
-        return toResponse(repository.findById(appointmentId).orElseThrow());
     }
 
     @Transactional

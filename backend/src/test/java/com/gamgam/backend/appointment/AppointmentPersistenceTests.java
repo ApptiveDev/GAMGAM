@@ -25,6 +25,9 @@ class AppointmentPersistenceTests {
     private AppointmentService service;
 
     @Autowired
+    private com.gamgam.backend.appointment.service.AppointmentVotingService voting;
+
+    @Autowired
     private AppointmentRepository repository;
 
     @Autowired
@@ -102,9 +105,11 @@ class AppointmentPersistenceTests {
         var joined = service.join(guestId, created.inviteCode().toLowerCase());
         assertThat(joined.members()).extracting("userId").contains(userId, guestId);
 
-        var timeVoted = service.toggleTimeVote(guestId, created.id(), 0);
+        voting.voteTime(created.id(), guestId, java.util.Set.of(0));
+        var timeVoted = service.get(guestId, created.id());
         assertThat(timeVoted.timeVotes().get(0)).contains(guestId);
-        var placeVoted = service.votePlace(guestId, created.id(), 1);
+        voting.votePlace(created.id(), guestId, java.util.Set.of(1));
+        var placeVoted = service.get(guestId, created.id());
         assertThat(placeVoted.placeVotes().get(1)).contains(guestId);
 
         assertThatThrownBy(() -> service.confirm(

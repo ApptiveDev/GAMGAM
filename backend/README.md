@@ -288,3 +288,5 @@ $env:CORS_ALLOWED_ORIGINS = "https://app.example.com,https://www.example.com"
 $env:SHARE_BASE_URL = "https://app.example.com"
 .\gradlew.bat bootRun --args="--spring.profiles.active=prod"
 ```
+
+투표와 생성 후 후보 추가는 AppointmentVotingController를 사용합니다. 시간·장소 선택 취소는 각 PUT API에 빈 optionIndexes 배열을 보내 처리합니다. 기존 POST /votes/time/{index}, PUT /votes/place/{index}, DELETE /votes/place, POST /options/time 경로는 제거되었습니다.

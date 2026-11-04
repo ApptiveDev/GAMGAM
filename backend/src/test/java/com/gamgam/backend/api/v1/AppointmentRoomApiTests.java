@@ -112,19 +112,22 @@ class AppointmentRoomApiTests {
     }
 
     @Test
-    void legacyAndNewVotingApisShareVotesAndParticipation() throws Exception {
+    void votingApiAndAppointmentResponsesShareVotesAndParticipation() throws Exception {
         String base = "/api/v1/appointments/" + id;
         String token = bearer("read-member");
-        mvc.perform(post(base + "/votes/time/0").header("Authorization", token))
+        mvc.perform(put(base + "/votes/time").header("Authorization", token)
+                        .contentType(MediaType.APPLICATION_JSON).content("{\"optionIndexes\":[0]}"))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.data.timeVotes['0'][0]").value("read-member"));
+                .andExpect(jsonPath("$.data.timeOptions[0].voterIds[0]").value("read-member"));
         mvc.perform(get(base + "/votes").header("Authorization", token))
                 .andExpect(status().isOk()).andExpect(jsonPath("$.data.timeOptions[0].voteCount").value(1))
                 .andExpect(jsonPath("$.data.participating").value(true));
-        mvc.perform(put(base + "/votes/place/1").header("Authorization", token))
-                .andExpect(status().isOk()).andExpect(jsonPath("$.data.placeVotes['1'][0]").value("read-member"));
-        mvc.perform(post(base + "/votes/time/0").header("Authorization", token))
-                .andExpect(status().isOk()).andExpect(jsonPath("$.data.timeVotes").isEmpty());
+        mvc.perform(put(base + "/votes/place").header("Authorization", token)
+                        .contentType(MediaType.APPLICATION_JSON).content("{\"optionIndexes\":[1]}"))
+                .andExpect(status().isOk()).andExpect(jsonPath("$.data.placeOptions[1].voterIds[0]").value("read-member"));
+        mvc.perform(put(base + "/votes/time").header("Authorization", token)
+                        .contentType(MediaType.APPLICATION_JSON).content("{\"optionIndexes\":[]}"))
+                .andExpect(status().isOk()).andExpect(jsonPath("$.data.timeOptions[0].voteCount").value(0));
         mvc.perform(put(base + "/votes/place").header("Authorization", token)
                         .contentType(MediaType.APPLICATION_JSON).content("{\"optionIndexes\":[]}"))
                 .andExpect(status().isOk()).andExpect(jsonPath("$.data.participating").value(false));
