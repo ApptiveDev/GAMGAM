@@ -11,6 +11,14 @@ import com.gamgam.backend.appointment.repository.AppointmentParticipantRepositor
 import com.gamgam.backend.appointment.repository.AppointmentVoteRepository;
 import com.gamgam.backend.global.exception.BusinessException;
 import com.gamgam.backend.global.exception.ErrorCode;
+import com.gamgam.backend.user.entity.User;
+import com.gamgam.backend.user.repository.UserRepository;
+import com.gamgam.backend.room.CreateRoomRequest;
+import com.gamgam.backend.room.RoomMember;
+import com.gamgam.backend.room.RoomMemberRepository;
+import com.gamgam.backend.room.RoomRepository;
+import com.gamgam.backend.room.RoomService;
+import java.util.UUID;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Set;
@@ -36,11 +44,25 @@ class AppointmentVotingServiceTests {
     @Autowired AppointmentParticipantRepository participants;
     @Autowired AppointmentVoteRepository votes;
     @Autowired PlatformTransactionManager transactionManager;
+    @Autowired UserRepository users;
+    @Autowired RoomService rooms;
+    @Autowired RoomRepository roomRepository;
+    @Autowired RoomMemberRepository roomMembers;
+    private String roomId;
     private String id;
 
     @BeforeEach
     void setUp() {
-        id = appointments.create("demo-room", USER, both()).id();
+        for (String userId : new String[]{USER, OTHER, "outsider"}) {
+            if (!users.existsById(userId)) {
+                users.save(User.builder().id(userId).email(userId + "@voting-service.test")
+                        .name(userId).passwordHash("unused").build());
+            }
+        }
+        roomId = rooms.create(USER, new CreateRoomRequest("Voting service test room")).id();
+        roomMembers.save(new RoomMember(UUID.randomUUID().toString(),
+                roomRepository.findById(roomId).orElseThrow(), users.findById(OTHER).orElseThrow()));
+        id = appointments.create(roomId, USER, both()).id();
     }
 
     @Test
@@ -146,12 +168,12 @@ class AppointmentVotingServiceTests {
         error(() -> service.votePlace(id, "outsider", Set.of(0)), ErrorCode.ROOM_ACCESS_DENIED);
         error(() -> service.addPlaceCandidate(id, "outsider", place("다른 장소")), ErrorCode.ROOM_ACCESS_DENIED);
         error(() -> service.participateRegardless(id, "outsider", true), ErrorCode.ROOM_ACCESS_DENIED);
-        error(() -> appointments.create("demo-room", "outsider", both()), ErrorCode.ROOM_ACCESS_DENIED);
+        error(() -> appointments.create(roomId, "outsider", both()), ErrorCode.ROOM_ACCESS_DENIED);
     }
 
     @Test
     void 확정된_약속은_투표_제안_신청을_변경할_수_없다() {
-        String confirmed = appointments.create("demo-room", USER, all()).id();
+        String confirmed = appointments.create(roomId, USER, all()).id();
         error(() -> service.voteTime(confirmed, USER, Set.of(0)), ErrorCode.NOT_COORDINATING);
         error(() -> service.votePlace(confirmed, USER, Set.of()), ErrorCode.NOT_COORDINATING);
         error(() -> service.addPlaceCandidate(confirmed, USER, place("다른 장소")), ErrorCode.NOT_COORDINATING);
@@ -160,8 +182,8 @@ class AppointmentVotingServiceTests {
 
     @Test
     void 조율하지_않는_항목과_없는_약속은_거부한다() {
-        String timeOnly = appointments.create("demo-room", USER, timeOnly()).id();
-        String placeOnly = appointments.create("demo-room", USER, placeOnly()).id();
+        String timeOnly = appointments.create(roomId, USER, timeOnly()).id();
+        String placeOnly = appointments.create(roomId, USER, placeOnly()).id();
         error(() -> service.votePlace(timeOnly, USER, Set.of()), ErrorCode.VOTE_NOT_ALLOWED);
         error(() -> service.addPlaceCandidate(timeOnly, USER, place("다른 장소")), ErrorCode.VOTE_NOT_ALLOWED);
         error(() -> service.voteTime(placeOnly, USER, Set.of()), ErrorCode.VOTE_NOT_ALLOWED);
@@ -170,7 +192,7 @@ class AppointmentVotingServiceTests {
 
     @Test
     void 같은_방의_다른_약속에_투표와_신청이_섞이지_않는다() {
-        String otherId = appointments.create("demo-room", USER, both()).id();
+        String otherId = appointments.create(roomId, USER, both()).id();
         service.voteTime(id, USER, Set.of(0));
         service.addPlaceCandidate(id, USER, place("추가 장소"));
         var other = service.get(otherId, USER);
@@ -182,7 +204,7 @@ class AppointmentVotingServiceTests {
     @Test
     void 생성과_후보_추가를_같은_트랜잭션에서_해도_불변_리스트_오류가_없다() {
         new TransactionTemplate(transactionManager).executeWithoutResult(status -> {
-            String created = appointments.create("demo-room", USER, both()).id();
+            String created = appointments.create(roomId, USER, both()).id();
             assertThat(service.addPlaceCandidate(created, USER, place("추가 장소")).placeOptions()).hasSize(3);
             status.setRollbackOnly();
         });
@@ -250,21 +272,21 @@ class AppointmentVotingServiceTests {
         var request = new TimeCandidateRequest(future(5));
         error(() -> service.addTimeCandidate(id, "outsider", request), ErrorCode.ROOM_ACCESS_DENIED);
         error(() -> service.addTimeCandidate("missing", USER, request), ErrorCode.APPOINTMENT_NOT_FOUND);
-        String confirmed = appointments.create("demo-room", USER, all()).id();
+        String confirmed = appointments.create(roomId, USER, all()).id();
         error(() -> service.addTimeCandidate(confirmed, USER, request), ErrorCode.NOT_COORDINATING);
-        String placeOnly = appointments.create("demo-room", USER, placeOnly()).id();
+        String placeOnly = appointments.create(roomId, USER, placeOnly()).id();
         error(() -> service.addTimeCandidate(placeOnly, USER, request), ErrorCode.VOTE_NOT_ALLOWED);
         error(() -> service.addTimeCandidate(id, USER,
                 new TimeCandidateRequest(java.time.OffsetDateTime.now().minusDays(1))), ErrorCode.BAD_REQUEST);
         error(() -> service.addTimeCandidate(id, USER, new TimeCandidateRequest(null)), ErrorCode.BAD_REQUEST);
-        String timeOnly = appointments.create("demo-room", USER, timeOnly()).id();
+        String timeOnly = appointments.create(roomId, USER, timeOnly()).id();
         assertThat(service.addTimeCandidate(timeOnly, USER, request).timeOptions()).hasSize(3);
     }
 
     @Test
     void 생성_직후_시간_후보를_추가해도_불변_리스트_오류가_없다() {
         new TransactionTemplate(transactionManager).executeWithoutResult(status -> {
-            String created = appointments.create("demo-room", USER, both()).id();
+            String created = appointments.create(roomId, USER, both()).id();
             service.participateRegardless(created, USER, true);
             var result = service.addTimeCandidate(created, USER, new TimeCandidateRequest(future(5)));
             assertThat(result.timeOptions()).hasSize(3);
