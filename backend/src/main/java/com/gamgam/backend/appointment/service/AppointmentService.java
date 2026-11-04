@@ -144,18 +144,48 @@ public class AppointmentService {
         Appointment appointment = findAccessible(userId, appointmentId);
         requireHost(appointment, userId);
         requireCoordinating(appointment);
-        Integer timeIndex = request.timeOptionIndex();
-        Integer placeIndex = request.placeOptionIndex();
-        if (appointment.getTemplate().coordinatesTime()) {
-            validateNullableIndex(timeIndex, appointment.getCandidatesTime().size());
+        if (appointment.getTemplate().coordinatesTime() && appointment.getConfirmedTime() == null) {
+            confirmOption(appointment, VoteType.TIME, request.timeOptionIndex());
         }
-        if (appointment.getTemplate().coordinatesPlace()) {
-            validateNullableIndex(placeIndex, appointment.getCandidatesPlace().size());
+        if (appointment.getTemplate().coordinatesPlace() && appointment.getConfirmedPlace() == null) {
+            confirmOption(appointment, VoteType.PLACE, request.placeOptionIndex());
         }
-        appointment.confirm(timeIndex, placeIndex);
         return toResponse(appointment);
     }
 
+    @Transactional
+    public AppointmentResponse confirmOption(String userId, String id, VoteType type, Integer index) {
+        Appointment appointment = findAccessible(userId, id);
+        rooms.requireMember(appointment.getRoomId(), userId);
+        requireHost(appointment, userId);
+        requireCoordinating(appointment);
+        confirmOption(appointment, type, index);
+        return toResponse(appointment);
+    }
+
+    private void confirmOption(Appointment appointment, VoteType type, Integer index) {
+        boolean time = type == VoteType.TIME;
+        if (time && (!appointment.getTemplate().coordinatesTime() || appointment.getConfirmedTime() != null)
+                || !time && (!appointment.getTemplate().coordinatesPlace() || appointment.getConfirmedPlace() != null)) {
+            throw new BusinessException(ErrorCode.VOTE_NOT_ALLOWED);
+        }
+        int size = appointment.getCandidatesTime().size();
+        if (!time) size = appointment.getCandidatesPlace().size();
+        if (size == 0) throw new BusinessException(ErrorCode.INVALID_OPTION);
+        if (index == null) {
+            int[] counts = new int[size];
+            voteRepository.findByAppointmentIdOrderByIdAsc(appointment.getId()).stream()
+                    .filter(vote -> vote.getType() == type)
+                    .forEach(vote -> counts[vote.getOptionIndex()]++);
+            index = 0;
+            for (int candidate = 1; candidate < size; candidate++) {
+                if (counts[candidate] > counts[index]) index = candidate;
+            }
+        }
+        validateIndex(index, size);
+        if (time) appointment.confirmTime(index);
+        else appointment.confirmPlace(index);
+    }
     @Transactional
     public AppointmentResponse setPenalty(String userId, String appointmentId,
                                           CreateAppointmentRequest.PenaltyRequest request) {
@@ -238,12 +268,6 @@ public class AppointmentService {
         }
     }
 
-    private static void validateNullableIndex(Integer index, int size) {
-        if (index == null) {
-            throw new BusinessException(ErrorCode.INVALID_VOTE_OPTION);
-        }
-        validateIndex(index, size);
-    }
 
     private static void validateIndex(int index, int size) {
         if (index < 0 || index >= size) {

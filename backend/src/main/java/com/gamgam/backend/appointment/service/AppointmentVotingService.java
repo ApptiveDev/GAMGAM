@@ -60,7 +60,8 @@ public class AppointmentVotingService {
         Appointment appointment = load(id, userId, true);
         requireCoordinating(appointment);
         boolean allowed = type == VoteType.TIME
-                ? appointment.getTemplate().coordinatesTime() : appointment.getTemplate().coordinatesPlace();
+                ? appointment.getTemplate().coordinatesTime() && appointment.getConfirmedTime() == null
+                : appointment.getTemplate().coordinatesPlace() && appointment.getConfirmedPlace() == null;
         if (!allowed) throw new BusinessException(ErrorCode.VOTE_NOT_ALLOWED);
         int size = type == VoteType.TIME ? appointment.getCandidatesTime().size() : appointment.getCandidatesPlace().size();
         if (indexes == null || indexes.stream().anyMatch(i -> i == null || i < 0 || i >= size)) {
@@ -78,6 +79,10 @@ public class AppointmentVotingService {
     public AppointmentVotingResponse participateRegardless(String id, String userId, boolean selected) {
         Appointment appointment = load(id, userId, true);
         requireCoordinating(appointment);
+        if (appointment.getTemplate().coordinatesTime() && appointment.getConfirmedTime() != null
+                || appointment.getTemplate().coordinatesPlace() && appointment.getConfirmedPlace() != null) {
+            throw new BusinessException(ErrorCode.VOTE_NOT_ALLOWED);
+        }
         if (selected) {
             // 특정 후보 선택과 배타적이다. 전환과 참여자 갱신을 하나의 트랜잭션에서 처리한다.
             votes.deleteSelection(id, userId, VoteType.TIME);
@@ -106,7 +111,7 @@ public class AppointmentVotingService {
     public AppointmentVotingResponse addTimeCandidate(String id, String userId, TimeCandidateRequest request) {
         Appointment appointment = load(id, userId, true);
         requireCoordinating(appointment);
-        if (!appointment.getTemplate().coordinatesTime()) {
+        if (!appointment.getTemplate().coordinatesTime() || appointment.getConfirmedTime() != null) {
             throw new BusinessException(ErrorCode.VOTE_NOT_ALLOWED);
         }
         if (request.time() == null || !request.time().isAfter(OffsetDateTime.now())) {
@@ -130,7 +135,7 @@ public class AppointmentVotingService {
     public AppointmentVotingResponse addPlaceCandidate(String id, String userId, PlaceRequest request) {
         Appointment appointment = load(id, userId, true);
         requireCoordinating(appointment);
-        if (!appointment.getTemplate().coordinatesPlace()) {
+        if (!appointment.getTemplate().coordinatesPlace() || appointment.getConfirmedPlace() != null) {
             throw new BusinessException(ErrorCode.VOTE_NOT_ALLOWED);
         }
         String name = request.name().strip();

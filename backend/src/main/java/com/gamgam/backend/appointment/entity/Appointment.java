@@ -86,6 +86,20 @@ public class Appointment {
 
     public void rename(String name) { this.name = name; }
 
+    public void confirmTime(int index) {
+        confirmedTime = candidatesTime.get(index);
+        settle();
+    }
+
+    public void confirmPlace(int index) {
+        confirmedPlace = candidatesPlace.get(index);
+        settle();
+    }
+
+    private void settle() {
+        if (confirmedTime != null && confirmedPlace != null) status = AppointmentStatus.CONFIRMED;
+    }
+
     public void addCandidateTime(OffsetDateTime time) { candidatesTime.add(time); }
     public void addCandidatePlace(Place place) { candidatesPlace.add(place); }
     public void updatePenalty(PenaltyRule penalty) { this.penalty = penalty; }

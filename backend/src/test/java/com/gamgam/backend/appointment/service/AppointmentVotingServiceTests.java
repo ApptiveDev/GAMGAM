@@ -373,6 +373,41 @@ class AppointmentVotingServiceTests {
         assertThat(members.existsByAppointmentIdAndUserId(id, OTHER))
                 .isEqualTo(votes.existsByAppointmentIdAndUserId(id, OTHER));
     }
+    @Test
+    void independentConfirmationSupportsAutomaticAndHostSelection() {
+        service.voteTime(id, USER, Set.of(1));
+        service.voteTime(id, OTHER, Set.of(1));
+        var time = appointments.confirmOption(USER, id, com.gamgam.backend.appointment.vo.VoteType.TIME, null);
+        assertThat(time.confirmedTime()).isEqualTo(time.candidatesTime().get(1));
+        assertThat(time.status()).isEqualTo(com.gamgam.backend.appointment.vo.AppointmentStatus.COORDINATING);
+        error(() -> service.voteTime(id, OTHER, Set.of()), ErrorCode.VOTE_NOT_ALLOWED);
+        error(() -> service.addTimeCandidate(id, USER, new TimeCandidateRequest(future(8))), ErrorCode.VOTE_NOT_ALLOWED);
+        error(() -> service.participateRegardless(id, OTHER, true), ErrorCode.VOTE_NOT_ALLOWED);
+        error(() -> appointments.confirmOption(USER, id, com.gamgam.backend.appointment.vo.VoteType.TIME, 0), ErrorCode.VOTE_NOT_ALLOWED);
+        service.votePlace(id, OTHER, Set.of(1));
+        var place = appointments.confirmOption(USER, id, com.gamgam.backend.appointment.vo.VoteType.PLACE, 0);
+        assertThat(place.confirmedPlace()).isEqualTo(place.candidatesPlace().get(0));
+        assertThat(place.status()).isEqualTo(com.gamgam.backend.appointment.vo.AppointmentStatus.CONFIRMED);
+    }
+
+    @Test
+    void automaticConfirmationUsesFirstCandidateForTiesAndZeroVotes() {
+        service.voteTime(id, USER, Set.of(0, 1));
+        var result = appointments.confirm(USER, id,
+                new com.gamgam.backend.appointment.dto.ConfirmAppointmentRequest(null, null));
+        assertThat(result.confirmedTime()).isEqualTo(result.candidatesTime().get(0));
+        assertThat(result.confirmedPlace()).isEqualTo(result.candidatesPlace().get(0));
+    }
+
+    @Test
+    void confirmationRejectsNonHostAndInvalidIndex() {
+        service.voteTime(id, OTHER, Set.of(0));
+        error(() -> appointments.confirmOption(OTHER, id, com.gamgam.backend.appointment.vo.VoteType.TIME, null),
+                ErrorCode.APPOINTMENT_HOST_ONLY);
+        error(() -> appointments.confirmOption(USER, id, com.gamgam.backend.appointment.vo.VoteType.TIME, 99),
+                ErrorCode.INVALID_VOTE_OPTION);
+        assertThat(appointments.get(USER, id).confirmedTime()).isNull();
+    }
     private static void error(ThrowingCallable action, ErrorCode expected) {
         assertThatThrownBy(action).isInstanceOfSatisfying(BusinessException.class,
                 ex -> assertThat(ex.errorCode()).isEqualTo(expected));

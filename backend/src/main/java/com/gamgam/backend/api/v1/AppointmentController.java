@@ -4,6 +4,8 @@ import com.gamgam.backend.appointment.dto.AppointmentResponse;
 import com.gamgam.backend.appointment.dto.CreateAppointmentRequest;
 import com.gamgam.backend.appointment.dto.JoinAppointmentRequest;
 import com.gamgam.backend.appointment.dto.ConfirmAppointmentRequest;
+import com.gamgam.backend.appointment.dto.ConfirmOptionRequest;
+import com.gamgam.backend.appointment.vo.VoteType;
 import com.gamgam.backend.appointment.dto.RenameAppointmentRequest;
 import org.springframework.web.bind.annotation.PatchMapping;
 
@@ -90,6 +92,26 @@ public class AppointmentController {
             @PathVariable String memberId) {
         service.removeMember(userId, id, memberId);
         return ApiResponse.ok(null);
+    }
+
+    @PostMapping("/appointments/{id}/confirm/time")
+    public ApiResponse<AppointmentResponse> confirmTime(
+            @RequestAttribute(AuthInterceptor.USER_ID_ATTRIBUTE) String userId,
+            @PathVariable String id,
+            @Valid @RequestBody(required = false) ConfirmOptionRequest request) {
+        Integer index = null;
+        if (request != null) index = request.optionIndex();
+        return ApiResponse.ok(service.confirmOption(userId, id, VoteType.TIME, index));
+    }
+
+    @PostMapping("/appointments/{id}/confirm/place")
+    public ApiResponse<AppointmentResponse> confirmPlace(
+            @RequestAttribute(AuthInterceptor.USER_ID_ATTRIBUTE) String userId,
+            @PathVariable String id,
+            @Valid @RequestBody(required = false) ConfirmOptionRequest request) {
+        Integer index = null;
+        if (request != null) index = request.optionIndex();
+        return ApiResponse.ok(service.confirmOption(userId, id, VoteType.PLACE, index));
     }
 
     @PostMapping("/appointments/{id}/confirm")
