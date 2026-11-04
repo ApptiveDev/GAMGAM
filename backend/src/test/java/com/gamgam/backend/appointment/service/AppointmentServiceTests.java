@@ -5,6 +5,7 @@ import static com.gamgam.backend.appointment.AppointmentFixtures.both;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
@@ -34,6 +35,7 @@ class AppointmentServiceTests {
     private UserRepository users;
     private AppointmentService service;
     private User user;
+    private RoomAccess rooms;
 
     @BeforeEach
     void setUp() {
@@ -43,7 +45,7 @@ class AppointmentServiceTests {
         var placeVotes = mock(AppointmentPlaceVoteRepository.class);
         var agreements = mock(PenaltyAgreementRepository.class);
         users = mock(UserRepository.class);
-        RoomAccess rooms = mock(RoomAccess.class);
+        rooms = mock(RoomAccess.class);
         service = new AppointmentService(appointments, members, timeVotes, placeVotes, agreements, users,
                 new ShareLinkGenerator(new ShareProperties("http://localhost:3000")), rooms);
         user = User.builder().id("user-1").email("user@example.com").name("User").passwordHash("hash").build();
@@ -77,11 +79,12 @@ class AppointmentServiceTests {
                 .hostId("host").inviteCode("ABCDEFGH").template(com.gamgam.backend.appointment.vo.AppointmentTemplate.ALL)
                 .status(AppointmentStatus.CONFIRMED).build();
         when(appointments.findById("a-1")).thenReturn(Optional.of(appointment));
-        when(members.existsByAppointmentIdAndUserId("a-1", "user-1")).thenReturn(false);
+        doThrow(new BusinessException(ErrorCode.ROOM_ACCESS_DENIED))
+                .when(rooms).requireMember("demo-room", "user-1");
 
         assertThatThrownBy(() -> service.get("user-1", "a-1"))
                 .isInstanceOfSatisfying(BusinessException.class,
-                        error -> assertThat(error.errorCode()).isEqualTo(ErrorCode.APPOINTMENT_ACCESS_DENIED));
+                        error -> assertThat(error.errorCode()).isEqualTo(ErrorCode.ROOM_ACCESS_DENIED));
     }
 
     @Test

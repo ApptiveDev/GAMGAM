@@ -87,7 +87,8 @@ public class AppointmentService {
     }
 
     public AppointmentResponse get(String userId, String id) {
-        Appointment appointment = findAccessible(userId, id);
+        Appointment appointment = repository.findById(id)
+                .orElseThrow(() -> new BusinessException(ErrorCode.APPOINTMENT_NOT_FOUND));
         rooms.requireMember(appointment.getRoomId(), userId);
         return toResponse(appointment);
     }
@@ -98,7 +99,7 @@ public class AppointmentService {
 
     public List<AppointmentResponse> list(String roomId, String userId) {
         rooms.requireMember(roomId, userId);
-        return repository.findAllForUserInRoom(roomId, userId).stream().map(this::toResponse).toList();
+        return repository.findByRoomIdOrderByCreatedAtDesc(roomId).stream().map(this::toResponse).toList();
     }
 
     @Transactional
