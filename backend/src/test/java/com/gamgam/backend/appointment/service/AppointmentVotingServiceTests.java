@@ -48,6 +48,7 @@ class AppointmentVotingServiceTests {
     @Autowired RoomService rooms;
     @Autowired RoomRepository roomRepository;
     @Autowired RoomMemberRepository roomMembers;
+    @Autowired com.gamgam.backend.appointment.repository.PenaltyAgreementRepository agreements;
     private String roomId;
     private String id;
 
@@ -335,6 +336,42 @@ class AppointmentVotingServiceTests {
         assertThat(response.participantIds()).doesNotContain(USER);
         assertThat(members.findByAppointmentIdAndUserId(id, USER).orElseThrow().getRole())
                 .isEqualTo(com.gamgam.backend.appointment.vo.AppointmentMemberRole.HOST);
+    }
+    @Test
+    void allParticipationExitPathsRemoveOnlyTargetData() {
+        for (int exit = 0; exit < 4; exit++) {
+            String appointmentId = appointments.create(roomId, USER, both()).id();
+            service.voteTime(appointmentId, USER, Set.of(0));
+            service.voteTime(appointmentId, OTHER, Set.of(1));
+            agreements.save(new com.gamgam.backend.appointment.entity.PenaltyAgreement(appointmentId, OTHER));
+            if (exit == 0) {
+                appointments.leave(OTHER, appointmentId);
+            } else if (exit == 1) {
+                appointments.removeMember(USER, appointmentId, OTHER);
+            } else if (exit == 2) {
+                service.voteTime(appointmentId, OTHER, Set.of());
+            } else {
+                service.participateRegardless(appointmentId, OTHER, true);
+                service.participateRegardless(appointmentId, OTHER, false);
+            }
+            assertThat(members.existsByAppointmentIdAndUserId(appointmentId, OTHER)).isFalse();
+            assertThat(votes.existsByAppointmentIdAndUserId(appointmentId, OTHER)).isFalse();
+            assertThat(agreements.findByAppointmentIdAndUserId(appointmentId, OTHER)).isEmpty();
+            assertThat(service.get(appointmentId, USER).participantIds()).containsExactly(USER);
+        }
+    }
+
+    @Test
+    void concurrentLeaveAndVoteKeepMemberAndVoteConsistent() throws Exception {
+        service.voteTime(id, OTHER, Set.of(0));
+        parallel(List.of(
+                () -> service.votePlace(id, OTHER, Set.of(0)),
+                () -> {
+                    appointments.leave(OTHER, id);
+                    return service.get(id, USER);
+                }));
+        assertThat(members.existsByAppointmentIdAndUserId(id, OTHER))
+                .isEqualTo(votes.existsByAppointmentIdAndUserId(id, OTHER));
     }
     private static void error(ThrowingCallable action, ErrorCode expected) {
         assertThatThrownBy(action).isInstanceOfSatisfying(BusinessException.class,

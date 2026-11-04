@@ -50,6 +50,7 @@ public class AppointmentService {
     private final UserRepository userRepository;
     private final ShareLinkGenerator shareLinkGenerator;
     private final RoomAccess rooms;
+    private final AppointmentParticipationService participation;
 
     @Transactional
     public AppointmentResponse create(String roomId, String userId, CreateAppointmentRequest request) {
@@ -106,6 +107,8 @@ public class AppointmentService {
     public AppointmentResponse join(String userId, String inviteCode) {
         Appointment appointment = repository.findByInviteCode(inviteCode.trim().toUpperCase(Locale.ROOT))
                 .orElseThrow(() -> new BusinessException(ErrorCode.INVALID_INVITE_CODE));
+        appointment = repository.findByIdForUpdate(appointment.getId())
+                .orElseThrow(() -> new BusinessException(ErrorCode.APPOINTMENT_NOT_FOUND));
         if (memberRepository.existsByAppointmentIdAndUserId(appointment.getId(), userId)) {
             throw new BusinessException(ErrorCode.ALREADY_JOINED);
         }
@@ -194,14 +197,11 @@ public class AppointmentService {
     private void removeMemberData(String appointmentId, String userId) {
         AppointmentMember member = memberRepository.findByAppointmentIdAndUserId(appointmentId, userId)
                 .orElseThrow(() -> new BusinessException(ErrorCode.MEMBER_NOT_FOUND));
-        voteRepository.deleteSelection(appointmentId, userId, VoteType.TIME);
-        voteRepository.deleteSelection(appointmentId, userId, VoteType.PLACE);
-        penaltyAgreementRepository.deleteAllByAppointmentIdAndUserId(appointmentId, userId);
-        memberRepository.delete(member);
+        participation.remove(member);
     }
 
     private Appointment findAccessible(String userId, String id) {
-        Appointment appointment = repository.findById(id)
+        Appointment appointment = repository.findByIdForUpdate(id)
                 .orElseThrow(() -> new BusinessException(ErrorCode.APPOINTMENT_NOT_FOUND));
         if (!memberRepository.existsByAppointmentIdAndUserId(id, userId)) {
             throw new BusinessException(ErrorCode.APPOINTMENT_ACCESS_DENIED);

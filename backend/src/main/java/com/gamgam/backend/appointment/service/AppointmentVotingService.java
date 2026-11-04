@@ -40,6 +40,7 @@ public class AppointmentVotingService {
     private final AppointmentMemberRepository members;
     private final UserRepository users;
     private final RoomAccess rooms;
+    private final AppointmentParticipationService participation;
 
     public AppointmentVotingResponse get(String id, String userId) {
         return response(load(id, userId, false), userId);
@@ -97,7 +98,7 @@ public class AppointmentVotingService {
                 || votes.existsByAppointmentIdAndUserId(appointment.getId(), userId)) {
             if (existing.isEmpty()) members.save(participant);
         } else if (existing.isPresent() && participant.getRole() != AppointmentMemberRole.HOST) {
-            members.delete(participant);
+            participation.remove(participant);
         }
     }
 

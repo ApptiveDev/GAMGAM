@@ -47,7 +47,7 @@ class AppointmentServiceTests {
         users = mock(UserRepository.class);
         rooms = mock(RoomAccess.class);
         service = new AppointmentService(appointments, members, votes, agreements, users,
-                new ShareLinkGenerator(new ShareProperties("http://localhost:3000")), rooms);
+                new ShareLinkGenerator(new ShareProperties("http://localhost:3000")), rooms, mock(AppointmentParticipationService.class));
         user = User.builder().id("user-1").email("user@example.com").name("User").passwordHash("hash").build();
         when(users.findById("user-1")).thenReturn(Optional.of(user));
         when(appointments.save(any(Appointment.class))).thenAnswer(invocation -> invocation.getArgument(0));
@@ -93,6 +93,7 @@ class AppointmentServiceTests {
                 .hostId("host").inviteCode("ABCDEFGH").template(com.gamgam.backend.appointment.vo.AppointmentTemplate.ALL)
                 .status(AppointmentStatus.CONFIRMED).build();
         when(appointments.findByInviteCode("ABCDEFGH")).thenReturn(Optional.of(appointment));
+        when(appointments.findByIdForUpdate("a-1")).thenReturn(Optional.of(appointment));
         when(members.existsByAppointmentIdAndUserId("a-1", "user-1")).thenReturn(true);
 
         assertThatThrownBy(() -> service.join("user-1", "abcdefgh"))
