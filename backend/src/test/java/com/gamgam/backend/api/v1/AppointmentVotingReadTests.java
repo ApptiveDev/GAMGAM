@@ -8,6 +8,15 @@ import com.gamgam.backend.appointment.entity.AppointmentVote;
 import com.gamgam.backend.appointment.entity.AppointmentParticipant;
 import com.gamgam.backend.appointment.repository.*;
 import com.gamgam.backend.appointment.service.AppointmentService;
+import com.gamgam.backend.auth.security.JwtTokenProvider;
+import com.gamgam.backend.user.entity.User;
+import com.gamgam.backend.user.repository.UserRepository;
+import com.gamgam.backend.room.CreateRoomRequest;
+import com.gamgam.backend.room.RoomMember;
+import com.gamgam.backend.room.RoomMemberRepository;
+import com.gamgam.backend.room.RoomRepository;
+import com.gamgam.backend.room.RoomService;
+import java.util.UUID;
 import com.gamgam.backend.appointment.vo.VoteType;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -16,28 +25,53 @@ import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.setup.MockMvcBuilders;
 import org.springframework.web.context.WebApplicationContext;
+import org.springframework.transaction.annotation.Transactional;
 
 @SpringBootTest
+@Transactional
 class AppointmentVotingReadTests {
     @Autowired WebApplicationContext context;
     @Autowired AppointmentService service;
     @Autowired AppointmentRepository appointments;
     @Autowired AppointmentVoteRepository votes;
     @Autowired AppointmentParticipantRepository participants;
+    @Autowired JwtTokenProvider tokens;
+    @Autowired UserRepository users;
+    @Autowired RoomService rooms;
+    @Autowired RoomRepository roomRepository;
+    @Autowired RoomMemberRepository roomMembers;
+    private String roomId;
+
+    private String bearer(String userId) {
+        return "Bearer " + tokens.create(users.findById(userId).orElseThrow()).value();
+    }
+
+    private void setUpUsersAndRoom() {
+        for (String userId : new String[]{"u-yeeun", "u-doyun", "outsider"}) {
+            users.save(User.builder().id(userId).email(userId + "@voting.test")
+                    .name(userId).passwordHash("unused").build());
+        }
+        roomId = rooms.create("u-yeeun", new CreateRoomRequest("Voting test room")).id();
+        roomMembers.save(new RoomMember(UUID.randomUUID().toString(),
+                roomRepository.findById(roomId).orElseThrow(), users.findById("u-doyun").orElseThrow()));
+    }
+
     private MockMvc mvc;
     private String id;
 
     @BeforeEach
     void setUp() {
-        mvc = MockMvcBuilders.webAppContextSetup(context).build();
-        id = service.create("demo-room", "u-yeeun", both()).id();
+        setUpUsersAndRoom();
+        mvc = MockMvcBuilders.webAppContextSetup(context)
+                .defaultRequest(get("/").header("Authorization", bearer("u-yeeun"))).build();
+        id = service.create(roomId, "u-yeeun", both()).id();
     }
 
     @Test
     void emptyVotesStillReturnAllCandidates() throws Exception {
         mvc.perform(get("/api/v1/appointments/" + id + "/votes"))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.data.roomId").value("demo-room"))
+                .andExpect(jsonPath("$.data.roomId").value(roomId))
                 .andExpect(jsonPath("$.data.participating").value(false))
                 .andExpect(jsonPath("$.data.participantIds").isEmpty())
                 .andExpect(jsonPath("$.data.timeOptions.length()").value(2))
@@ -56,11 +90,11 @@ class AppointmentVotingReadTests {
         var regardless = new AppointmentParticipant(appointment, "u-seoa");
         regardless.setRegardlessOfTimeAndPlace(true);
         participants.save(regardless);
-        var otherId = service.create("demo-room", "u-yeeun", both()).id();
+        var otherId = service.create(roomId, "u-yeeun", both()).id();
         votes.save(new AppointmentVote(appointments.findById(otherId).orElseThrow(),
                 "u-harin", VoteType.TIME, 0));
 
-        mvc.perform(get("/api/v1/appointments/" + id + "/votes").header("X-User-Id", "u-yeeun"))
+        mvc.perform(get("/api/v1/appointments/" + id + "/votes").header("Authorization", bearer("u-yeeun")))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.data.participating").value(true))
                 .andExpect(jsonPath("$.data.participantIds.length()").value(3))
@@ -77,7 +111,7 @@ class AppointmentVotingReadTests {
 
     @Test
     void outsiderAndMissingAppointmentAreRejected() throws Exception {
-        mvc.perform(get("/api/v1/appointments/" + id + "/votes").header("X-User-Id", "outsider"))
+        mvc.perform(get("/api/v1/appointments/" + id + "/votes").header("Authorization", bearer("outsider")))
                 .andExpect(status().isForbidden())
                 .andExpect(jsonPath("$.code").value("ROOM_ACCESS_DENIED"));
         mvc.perform(get("/api/v1/appointments/missing/votes"))
