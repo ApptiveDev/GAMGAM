@@ -143,6 +143,55 @@ class AppointmentRoomApiTests {
                 .andExpect(status().isOk()).andExpect(jsonPath("$.data[0].timeVotes['1'][0]").value("read-member"));
     }
     @Test
+    void hostCanRenameAndReadUpdatedName() throws Exception {
+        var before = service.get("read-host", id);
+        mvc.perform(patch("/api/v1/appointments/" + id).header("Authorization", bearer("read-host"))
+                        .contentType(MediaType.APPLICATION_JSON).content("{\"name\":\"  Updated meeting  \"}"))
+                .andExpect(status().isOk()).andExpect(jsonPath("$.data.name").value("Updated meeting"));
+        mvc.perform(get("/api/v1/appointments/" + id).header("Authorization", bearer("read-member")))
+                .andExpect(status().isOk()).andExpect(jsonPath("$.data.name").value("Updated meeting"));
+        mvc.perform(get("/api/v1/rooms/" + roomId + "/appointments").header("Authorization", bearer("read-member")))
+                .andExpect(status().isOk()).andExpect(jsonPath("$.data[0].name").value("Updated meeting"));
+        var after = service.get("read-host", id);
+        assertThat(after.status()).isEqualTo(before.status());
+        assertThat(after.hostId()).isEqualTo(before.hostId());
+        assertThat(after.candidatesTime()).isEqualTo(before.candidatesTime());
+        assertThat(after.members()).isEqualTo(before.members());
+    }
+
+    @Test
+    void renameValidatesNameAndAcceptsFiftyCharacters() throws Exception {
+        String original = service.get("read-host", id).name();
+        for (String body : new String[]{"{}", "{\"name\":null}", "{\"name\":\"   \"}",
+                "{\"name\":\"" + "a".repeat(51) + "\"}"}) {
+            mvc.perform(patch("/api/v1/appointments/" + id).header("Authorization", bearer("read-host"))
+                            .contentType(MediaType.APPLICATION_JSON).content(body))
+                    .andExpect(status().isBadRequest());
+        }
+        assertThat(service.get("read-host", id).name()).isEqualTo(original);
+        mvc.perform(patch("/api/v1/appointments/" + id).header("Authorization", bearer("read-host"))
+                        .contentType(MediaType.APPLICATION_JSON).content("{\"name\":\"  " + "a".repeat(50) + "  \"}"))
+                .andExpect(status().isOk()).andExpect(jsonPath("$.data.name").value("a".repeat(50)));
+    }
+
+    @Test
+    void renameRequiresHostAndAuthentication() throws Exception {
+        String original = service.get("read-host", id).name();
+        service.join("read-member", service.get("read-host", id).inviteCode());
+        for (String userId : new String[]{"read-member", "read-outsider"}) {
+            mvc.perform(patch("/api/v1/appointments/" + id).header("Authorization", bearer(userId))
+                            .contentType(MediaType.APPLICATION_JSON).content("{\"name\":\"Forbidden\"}"))
+                    .andExpect(status().isForbidden());
+        }
+        mvc.perform(patch("/api/v1/appointments/" + id)
+                        .contentType(MediaType.APPLICATION_JSON).content("{\"name\":\"Forbidden\"}"))
+                .andExpect(status().isUnauthorized());
+        mvc.perform(patch("/api/v1/appointments/missing").header("Authorization", bearer("read-host"))
+                        .contentType(MediaType.APPLICATION_JSON).content("{\"name\":\"Missing\"}"))
+                .andExpect(status().isNotFound());
+        assertThat(service.get("read-host", id).name()).isEqualTo(original);
+    }
+    @Test
     void readsRequireAuthentication() throws Exception {
         for (String path : new String[]{"/api/v1/appointments", "/api/v1/appointments/" + id,
                 "/api/v1/rooms/" + roomId + "/appointments"}) {

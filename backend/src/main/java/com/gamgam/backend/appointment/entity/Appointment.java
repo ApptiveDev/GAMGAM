@@ -84,6 +84,8 @@ public class Appointment {
         status = AppointmentStatus.CONFIRMED;
     }
 
+    public void rename(String name) { this.name = name; }
+
     public void addCandidateTime(OffsetDateTime time) { candidatesTime.add(time); }
     public void addCandidatePlace(Place place) { candidatesPlace.add(place); }
     public void updatePenalty(PenaltyRule penalty) { this.penalty = penalty; }

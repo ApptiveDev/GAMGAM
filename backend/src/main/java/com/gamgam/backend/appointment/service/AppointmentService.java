@@ -190,6 +190,18 @@ public class AppointmentService {
         return toResponse(appointment);
     }
 
+    @Transactional
+    public AppointmentResponse rename(String userId, String appointmentId, String name) {
+        Appointment appointment = findAccessible(userId, appointmentId);
+        rooms.requireMember(appointment.getRoomId(), userId);
+        requireHost(appointment, userId);
+        if (name == null || name.isBlank() || name.strip().length() > 50) {
+            throw new BusinessException(ErrorCode.BAD_REQUEST);
+        }
+        appointment.rename(name.strip());
+        return toResponse(appointment);
+    }
+
     public boolean isMember(String appointmentId, String userId) {
         return memberRepository.existsByAppointmentIdAndUserId(appointmentId, userId);
     }

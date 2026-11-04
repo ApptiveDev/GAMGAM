@@ -4,6 +4,8 @@ import com.gamgam.backend.appointment.dto.AppointmentResponse;
 import com.gamgam.backend.appointment.dto.CreateAppointmentRequest;
 import com.gamgam.backend.appointment.dto.JoinAppointmentRequest;
 import com.gamgam.backend.appointment.dto.ConfirmAppointmentRequest;
+import com.gamgam.backend.appointment.dto.RenameAppointmentRequest;
+import org.springframework.web.bind.annotation.PatchMapping;
 
 import com.gamgam.backend.appointment.service.AppointmentService;
 import com.gamgam.backend.auth.security.AuthInterceptor;
@@ -36,6 +38,14 @@ public class AppointmentController {
             @Valid @RequestBody CreateAppointmentRequest request) {
         return ResponseEntity.status(HttpStatus.CREATED)
                 .body(ApiResponse.ok(service.create(roomId, userId, request)));
+    }
+
+    @PatchMapping("/appointments/{id}")
+    public ApiResponse<AppointmentResponse> rename(
+            @RequestAttribute(AuthInterceptor.USER_ID_ATTRIBUTE) String userId,
+            @PathVariable String id,
+            @Valid @RequestBody RenameAppointmentRequest request) {
+        return ApiResponse.ok(service.rename(userId, id, request.name()));
     }
 
     @GetMapping("/appointments")
