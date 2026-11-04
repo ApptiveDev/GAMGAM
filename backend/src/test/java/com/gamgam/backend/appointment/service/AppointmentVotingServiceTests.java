@@ -7,7 +7,7 @@ import com.gamgam.backend.appointment.dto.AppointmentVotingResponse;
 import com.gamgam.backend.appointment.dto.TimeCandidateRequest;
 import java.time.ZoneOffset;
 import com.gamgam.backend.appointment.dto.CreateAppointmentRequest.PlaceRequest;
-import com.gamgam.backend.appointment.repository.AppointmentParticipantRepository;
+import com.gamgam.backend.appointment.repository.AppointmentMemberRepository;
 import com.gamgam.backend.appointment.repository.AppointmentVoteRepository;
 import com.gamgam.backend.global.exception.BusinessException;
 import com.gamgam.backend.global.exception.ErrorCode;
@@ -41,7 +41,7 @@ class AppointmentVotingServiceTests {
     private static final String OTHER = "u-doyun";
     @Autowired AppointmentVotingService service;
     @Autowired AppointmentService appointments;
-    @Autowired AppointmentParticipantRepository participants;
+    @Autowired AppointmentMemberRepository members;
     @Autowired AppointmentVoteRepository votes;
     @Autowired PlatformTransactionManager transactionManager;
     @Autowired UserRepository users;
@@ -99,7 +99,7 @@ class AppointmentVotingServiceTests {
         var response = service.votePlace(id, USER, Set.of());
         assertThat(response.participating()).isFalse();
         assertThat(response.participantIds()).isEmpty();
-        assertThat(participants.findByAppointmentIdAndUserId(id, USER)).isEmpty();
+        assertThat(members.findByAppointmentIdAndUserId(id, USER)).isPresent();
         assertThat(votes.findByAppointmentIdOrderByIdAsc(id)).isEmpty();
         assertThat(service.votePlace(id, USER, Set.of()).participating()).isFalse();
     }
@@ -310,6 +310,32 @@ class AppointmentVotingServiceTests {
         assertThat(result.participantIds()).isEmpty();
     }
 
+    @Test
+    void votingCreatesMemberAndLastCancellationRemovesMember() {
+        assertThat(members.existsByAppointmentIdAndUserId(id, OTHER)).isFalse();
+        service.voteTime(id, OTHER, Set.of(0));
+        assertThat(appointments.get(OTHER, id).members()).extracting(member -> member.userId()).contains(OTHER);
+        service.votePlace(id, OTHER, Set.of(0));
+        service.voteTime(id, OTHER, Set.of());
+        assertThat(members.existsByAppointmentIdAndUserId(id, OTHER)).isTrue();
+        service.votePlace(id, OTHER, Set.of());
+        assertThat(members.existsByAppointmentIdAndUserId(id, OTHER)).isFalse();
+        service.participateRegardless(id, OTHER, true);
+        assertThat(members.findByAppointmentIdAndUserId(id, OTHER).orElseThrow()
+                .isRegardlessOfTimeAndPlace()).isTrue();
+        service.participateRegardless(id, OTHER, false);
+        assertThat(members.existsByAppointmentIdAndUserId(id, OTHER)).isFalse();
+    }
+
+    @Test
+    void hostKeepsRoleAfterCancellingParticipation() {
+        service.participateRegardless(id, USER, true);
+        var response = service.participateRegardless(id, USER, false);
+        assertThat(response.participating()).isFalse();
+        assertThat(response.participantIds()).doesNotContain(USER);
+        assertThat(members.findByAppointmentIdAndUserId(id, USER).orElseThrow().getRole())
+                .isEqualTo(com.gamgam.backend.appointment.vo.AppointmentMemberRole.HOST);
+    }
     private static void error(ThrowingCallable action, ErrorCode expected) {
         assertThatThrownBy(action).isInstanceOfSatisfying(BusinessException.class,
                 ex -> assertThat(ex.errorCode()).isEqualTo(expected));

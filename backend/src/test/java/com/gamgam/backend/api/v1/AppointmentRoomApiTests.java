@@ -6,7 +6,7 @@ import static org.springframework.test.web.servlet.request.MockMvcRequestBuilder
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.*;
 
 import com.gamgam.backend.appointment.repository.AppointmentMemberRepository;
-import com.gamgam.backend.appointment.repository.AppointmentParticipantRepository;
+
 import com.gamgam.backend.appointment.service.AppointmentService;
 import com.gamgam.backend.auth.security.JwtTokenProvider;
 import com.gamgam.backend.room.*;
@@ -34,7 +34,7 @@ class AppointmentRoomApiTests {
     @Autowired RoomRepository roomRepository;
     @Autowired RoomMemberRepository roomMembers;
     @Autowired AppointmentMemberRepository members;
-    @Autowired AppointmentParticipantRepository participants;
+
     private MockMvc mvc;
     private String roomId;
     private String id;
@@ -66,7 +66,7 @@ class AppointmentRoomApiTests {
         mvc.perform(get("/api/v1/appointments/" + id + "/votes").header("Authorization", bearer("read-member")))
                 .andExpect(status().isOk()).andExpect(jsonPath("$.data.participating").value(false));
         assertThat(members.existsByAppointmentIdAndUserId(id, "read-member")).isFalse();
-        assertThat(participants.findByAppointmentIdAndUserId(id, "read-member")).isEmpty();
+
     }
 
     @Test

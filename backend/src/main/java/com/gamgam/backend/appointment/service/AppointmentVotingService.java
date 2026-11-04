@@ -4,8 +4,12 @@ import com.gamgam.backend.appointment.dto.AppointmentVotingResponse;
 import com.gamgam.backend.appointment.dto.TimeCandidateRequest;
 import com.gamgam.backend.appointment.dto.CreateAppointmentRequest.PlaceRequest;
 import com.gamgam.backend.appointment.entity.Appointment;
-import com.gamgam.backend.appointment.entity.AppointmentParticipant;
-import com.gamgam.backend.appointment.repository.AppointmentParticipantRepository;
+import com.gamgam.backend.appointment.entity.AppointmentMember;
+import com.gamgam.backend.appointment.repository.AppointmentMemberRepository;
+import com.gamgam.backend.appointment.vo.AppointmentMemberRole;
+import com.gamgam.backend.user.repository.UserRepository;
+import java.util.UUID;
+import java.util.stream.Collectors;
 import com.gamgam.backend.appointment.repository.AppointmentRepository;
 import com.gamgam.backend.appointment.vo.AppointmentStatus;
 import com.gamgam.backend.appointment.vo.Place;
@@ -33,7 +37,8 @@ import org.springframework.transaction.annotation.Transactional;
 public class AppointmentVotingService {
     private final AppointmentRepository appointments;
     private final AppointmentVoteRepository votes;
-    private final AppointmentParticipantRepository participants;
+    private final AppointmentMemberRepository members;
+    private final UserRepository users;
     private final RoomAccess rooms;
 
     public AppointmentVotingResponse get(String id, String userId) {
@@ -82,14 +87,17 @@ public class AppointmentVotingService {
     }
 
     private void synchronizeParticipation(Appointment appointment, String userId, Boolean regardless) {
-        var participant = participants.findByAppointmentIdAndUserId(appointment.getId(), userId)
-                .orElseGet(() -> new AppointmentParticipant(appointment, userId));
+        var existing = members.findByAppointmentIdAndUserId(appointment.getId(), userId);
+        var participant = existing.orElseGet(() -> new AppointmentMember(UUID.randomUUID().toString(),
+                appointment, users.findById(userId)
+                        .orElseThrow(() -> new BusinessException(ErrorCode.USER_NOT_FOUND)),
+                AppointmentMemberRole.MEMBER));
         if (regardless != null) participant.setRegardlessOfTimeAndPlace(regardless);
         if (participant.isRegardlessOfTimeAndPlace()
                 || votes.existsByAppointmentIdAndUserId(appointment.getId(), userId)) {
-            if (participant.getId() == null) participants.save(participant);
-        } else if (participant.getId() != null) {
-            participants.delete(participant);
+            if (existing.isEmpty()) members.save(participant);
+        } else if (existing.isPresent() && participant.getRole() != AppointmentMemberRole.HOST) {
+            members.delete(participant);
         }
     }
 
@@ -150,10 +158,13 @@ public class AppointmentVotingService {
 
     private AppointmentVotingResponse response(Appointment appointment, String userId) {
         List<AppointmentVote> allVotes = votes.findByAppointmentIdOrderByIdAsc(appointment.getId());
-        var members = participants.findByAppointmentIdOrderByJoinedAtAscIdAsc(appointment.getId());
-        var participantIds = members.stream().map(AppointmentParticipant::getUserId).toList();
-        var regardlessIds = members.stream().filter(AppointmentParticipant::isRegardlessOfTimeAndPlace)
-                .map(AppointmentParticipant::getUserId).toList();
+        var votingUserIds = allVotes.stream().map(AppointmentVote::getUserId).collect(Collectors.toSet());
+        var participatingMembers = members.findAllByAppointmentIdOrderByJoinedAtAsc(appointment.getId()).stream()
+                .filter(member -> member.isRegardlessOfTimeAndPlace() || votingUserIds.contains(member.getUser().getId()))
+                .toList();
+        var participantIds = participatingMembers.stream().map(member -> member.getUser().getId()).toList();
+        var regardlessIds = participatingMembers.stream().filter(AppointmentMember::isRegardlessOfTimeAndPlace)
+                .map(member -> member.getUser().getId()).toList();
         var times = IntStream.range(0, appointment.getCandidatesTime().size()).mapToObj(index -> {
             var voterIds = voterIds(allVotes, VoteType.TIME, index);
             return new AppointmentVotingResponse.TimeOption(index,

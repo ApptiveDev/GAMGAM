@@ -5,7 +5,8 @@ import static org.springframework.test.web.servlet.request.MockMvcRequestBuilder
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.*;
 
 import com.gamgam.backend.appointment.entity.AppointmentVote;
-import com.gamgam.backend.appointment.entity.AppointmentParticipant;
+import com.gamgam.backend.appointment.entity.AppointmentMember;
+import com.gamgam.backend.appointment.vo.AppointmentMemberRole;
 import com.gamgam.backend.appointment.repository.*;
 import com.gamgam.backend.appointment.service.AppointmentService;
 import com.gamgam.backend.auth.security.JwtTokenProvider;
@@ -34,7 +35,7 @@ class AppointmentVotingReadTests {
     @Autowired AppointmentService service;
     @Autowired AppointmentRepository appointments;
     @Autowired AppointmentVoteRepository votes;
-    @Autowired AppointmentParticipantRepository participants;
+    @Autowired AppointmentMemberRepository members;
     @Autowired JwtTokenProvider tokens;
     @Autowired UserRepository users;
     @Autowired RoomService rooms;
@@ -47,7 +48,7 @@ class AppointmentVotingReadTests {
     }
 
     private void setUpUsersAndRoom() {
-        for (String userId : new String[]{"u-yeeun", "u-doyun", "outsider"}) {
+        for (String userId : new String[]{"u-yeeun", "u-doyun", "u-seoa", "outsider"}) {
             users.save(User.builder().id(userId).email(userId + "@voting.test")
                     .name(userId).passwordHash("unused").build());
         }
@@ -85,11 +86,11 @@ class AppointmentVotingReadTests {
         votes.save(new AppointmentVote(appointment, "u-yeeun", VoteType.TIME, 0));
         votes.save(new AppointmentVote(appointment, "u-doyun", VoteType.TIME, 0));
         votes.save(new AppointmentVote(appointment, "u-doyun", VoteType.PLACE, 1));
-        participants.save(new AppointmentParticipant(appointment, "u-yeeun"));
-        participants.save(new AppointmentParticipant(appointment, "u-doyun"));
-        var regardless = new AppointmentParticipant(appointment, "u-seoa");
+
+        members.save(new AppointmentMember(UUID.randomUUID().toString(), appointment, users.findById("u-doyun").orElseThrow(), AppointmentMemberRole.MEMBER));
+        var regardless = new AppointmentMember(UUID.randomUUID().toString(), appointment, users.findById("u-seoa").orElseThrow(), AppointmentMemberRole.MEMBER);
         regardless.setRegardlessOfTimeAndPlace(true);
-        participants.save(regardless);
+        members.save(regardless);
         var otherId = service.create(roomId, "u-yeeun", both()).id();
         votes.save(new AppointmentVote(appointments.findById(otherId).orElseThrow(),
                 "u-harin", VoteType.TIME, 0));
