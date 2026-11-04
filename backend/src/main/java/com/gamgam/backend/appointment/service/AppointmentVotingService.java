@@ -55,6 +55,16 @@ public class AppointmentVotingService {
         return vote(id, userId, indexes, VoteType.PLACE);
     }
 
+    @Transactional
+    public AppointmentVotingResponse toggleTimeVote(String id, String userId, int optionIndex) {
+        load(id, userId, true);
+        var indexes = votes.findByAppointmentIdOrderByIdAsc(id).stream()
+                .filter(vote -> vote.getType() == VoteType.TIME && vote.getUserId().equals(userId))
+                .map(AppointmentVote::getOptionIndex).collect(Collectors.toCollection(TreeSet::new));
+        if (!indexes.remove(optionIndex)) indexes.add(optionIndex);
+        return vote(id, userId, indexes, VoteType.TIME);
+    }
+
     private AppointmentVotingResponse vote(String id, String userId, Set<Integer> indexes, VoteType type) {
         Appointment appointment = load(id, userId, true);
         requireCoordinating(appointment);

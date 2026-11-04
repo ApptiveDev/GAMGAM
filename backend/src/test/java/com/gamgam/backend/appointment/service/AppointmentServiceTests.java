@@ -12,9 +12,9 @@ import static org.mockito.Mockito.when;
 import com.gamgam.backend.appointment.entity.Appointment;
 import com.gamgam.backend.appointment.entity.AppointmentMember;
 import com.gamgam.backend.appointment.repository.AppointmentMemberRepository;
-import com.gamgam.backend.appointment.repository.AppointmentPlaceVoteRepository;
+import com.gamgam.backend.appointment.repository.AppointmentVoteRepository;
 import com.gamgam.backend.appointment.repository.AppointmentRepository;
-import com.gamgam.backend.appointment.repository.AppointmentTimeVoteRepository;
+
 import com.gamgam.backend.appointment.repository.PenaltyAgreementRepository;
 import com.gamgam.backend.appointment.vo.AppointmentMemberRole;
 import com.gamgam.backend.appointment.vo.AppointmentStatus;
@@ -41,20 +41,20 @@ class AppointmentServiceTests {
     void setUp() {
         appointments = mock(AppointmentRepository.class);
         members = mock(AppointmentMemberRepository.class);
-        var timeVotes = mock(AppointmentTimeVoteRepository.class);
-        var placeVotes = mock(AppointmentPlaceVoteRepository.class);
+        var votes = mock(AppointmentVoteRepository.class);
+        var voting = mock(AppointmentVotingService.class);
         var agreements = mock(PenaltyAgreementRepository.class);
         users = mock(UserRepository.class);
         rooms = mock(RoomAccess.class);
-        service = new AppointmentService(appointments, members, timeVotes, placeVotes, agreements, users,
+        service = new AppointmentService(appointments, members, votes, voting, agreements, users,
                 new ShareLinkGenerator(new ShareProperties("http://localhost:3000")), rooms);
         user = User.builder().id("user-1").email("user@example.com").name("User").passwordHash("hash").build();
         when(users.findById("user-1")).thenReturn(Optional.of(user));
         when(appointments.save(any(Appointment.class))).thenAnswer(invocation -> invocation.getArgument(0));
         when(members.save(any(AppointmentMember.class))).thenAnswer(invocation -> invocation.getArgument(0));
         when(members.findAllByAppointmentIdOrderByJoinedAtAsc(any())).thenReturn(List.of());
-        when(timeVotes.findAllByAppointmentId(any())).thenReturn(List.of());
-        when(placeVotes.findAllByAppointmentId(any())).thenReturn(List.of());
+        when(votes.findByAppointmentIdOrderByIdAsc(any())).thenReturn(List.of());
+
         when(agreements.findAllByAppointmentId(any())).thenReturn(List.of());
     }
 

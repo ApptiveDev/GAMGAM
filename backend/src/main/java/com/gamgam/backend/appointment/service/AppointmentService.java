@@ -6,12 +6,12 @@ import com.gamgam.backend.appointment.dto.ConfirmAppointmentRequest;
 import com.gamgam.backend.appointment.dto.CreateAppointmentRequest;
 import com.gamgam.backend.appointment.entity.Appointment;
 import com.gamgam.backend.appointment.entity.AppointmentMember;
-import com.gamgam.backend.appointment.entity.AppointmentPlaceVote;
-import com.gamgam.backend.appointment.entity.AppointmentTimeVote;
+import com.gamgam.backend.appointment.vo.VoteType;
+import com.gamgam.backend.appointment.dto.TimeCandidateRequest;
 import com.gamgam.backend.appointment.repository.AppointmentMemberRepository;
-import com.gamgam.backend.appointment.repository.AppointmentPlaceVoteRepository;
+import com.gamgam.backend.appointment.repository.AppointmentVoteRepository;
 import com.gamgam.backend.appointment.repository.AppointmentRepository;
-import com.gamgam.backend.appointment.repository.AppointmentTimeVoteRepository;
+import java.util.Set;
 import com.gamgam.backend.appointment.repository.PenaltyAgreementRepository;
 import com.gamgam.backend.appointment.entity.PenaltyAgreement;
 import com.gamgam.backend.appointment.vo.AppointmentMemberRole;
@@ -44,8 +44,8 @@ public class AppointmentService {
 
     private final AppointmentRepository repository;
     private final AppointmentMemberRepository memberRepository;
-    private final AppointmentTimeVoteRepository timeVoteRepository;
-    private final AppointmentPlaceVoteRepository placeVoteRepository;
+    private final AppointmentVoteRepository voteRepository;
+    private final AppointmentVotingService voting;
     private final PenaltyAgreementRepository penaltyAgreementRepository;
     private final UserRepository userRepository;
     private final ShareLinkGenerator shareLinkGenerator;
@@ -138,33 +138,20 @@ public class AppointmentService {
 
     @Transactional
     public AppointmentResponse toggleTimeVote(String userId, String appointmentId, int optionIndex) {
-        Appointment appointment = findAccessible(userId, appointmentId);
-        requireCoordinating(appointment);
-        validateIndex(optionIndex, appointment.getCandidatesTime().size());
-        timeVoteRepository.findByAppointmentIdAndUserIdAndOptionIndex(appointmentId, userId, optionIndex)
-                .ifPresentOrElse(timeVoteRepository::delete,
-                        () -> timeVoteRepository.save(new AppointmentTimeVote(appointmentId, userId, optionIndex)));
-        return toResponse(appointment);
+        voting.toggleTimeVote(appointmentId, userId, optionIndex);
+        return toResponse(repository.findById(appointmentId).orElseThrow());
     }
 
     @Transactional
     public AppointmentResponse votePlace(String userId, String appointmentId, int optionIndex) {
-        Appointment appointment = findAccessible(userId, appointmentId);
-        requireCoordinating(appointment);
-        validateIndex(optionIndex, appointment.getCandidatesPlace().size());
-        placeVoteRepository.findByAppointmentIdAndUserId(appointmentId, userId)
-                .ifPresent(placeVoteRepository::delete);
-        placeVoteRepository.flush();
-        placeVoteRepository.save(new AppointmentPlaceVote(appointmentId, userId, optionIndex));
-        return toResponse(appointment);
+        voting.votePlace(appointmentId, userId, Set.of(optionIndex));
+        return toResponse(repository.findById(appointmentId).orElseThrow());
     }
 
     @Transactional
     public AppointmentResponse clearPlaceVote(String userId, String appointmentId) {
-        Appointment appointment = findAccessible(userId, appointmentId);
-        requireCoordinating(appointment);
-        placeVoteRepository.deleteAllByAppointmentIdAndUserId(appointmentId, userId);
-        return toResponse(appointment);
+        voting.votePlace(appointmentId, userId, Set.of());
+        return toResponse(repository.findById(appointmentId).orElseThrow());
     }
 
     @Transactional
@@ -186,13 +173,8 @@ public class AppointmentService {
 
     @Transactional
     public AppointmentResponse addTimeOption(String userId, String appointmentId, java.time.OffsetDateTime time) {
-        Appointment appointment = findAccessible(userId, appointmentId);
-        requireCoordinating(appointment);
-        if (!appointment.getTemplate().coordinatesTime()) {
-            throw new BusinessException(ErrorCode.BAD_REQUEST);
-        }
-        appointment.addCandidateTime(KstTimeConverter.toUtc(time));
-        return toResponse(appointment);
+        voting.addTimeCandidate(appointmentId, userId, new TimeCandidateRequest(time));
+        return toResponse(repository.findById(appointmentId).orElseThrow());
     }
 
     @Transactional
@@ -236,8 +218,8 @@ public class AppointmentService {
     private void removeMemberData(String appointmentId, String userId) {
         AppointmentMember member = memberRepository.findByAppointmentIdAndUserId(appointmentId, userId)
                 .orElseThrow(() -> new BusinessException(ErrorCode.MEMBER_NOT_FOUND));
-        timeVoteRepository.deleteAllByAppointmentIdAndUserId(appointmentId, userId);
-        placeVoteRepository.deleteAllByAppointmentIdAndUserId(appointmentId, userId);
+        voteRepository.deleteSelection(appointmentId, userId, VoteType.TIME);
+        voteRepository.deleteSelection(appointmentId, userId, VoteType.PLACE);
         penaltyAgreementRepository.deleteAllByAppointmentIdAndUserId(appointmentId, userId);
         memberRepository.delete(member);
     }
@@ -293,11 +275,12 @@ public class AppointmentService {
         List<AppointmentMemberResponse> members = memberRepository
                 .findAllByAppointmentIdOrderByJoinedAtAsc(appointment.getId()).stream()
                 .map(AppointmentMemberResponse::from).toList();
+        var allVotes = voteRepository.findByAppointmentIdOrderByIdAsc(appointment.getId());
         Map<Integer, List<String>> timeVotes = new LinkedHashMap<>();
-        timeVoteRepository.findAllByAppointmentId(appointment.getId()).forEach(vote ->
+        allVotes.stream().filter(vote -> vote.getType() == VoteType.TIME).forEach(vote ->
                 timeVotes.computeIfAbsent(vote.getOptionIndex(), ignored -> new ArrayList<>()).add(vote.getUserId()));
         Map<Integer, List<String>> placeVotes = new LinkedHashMap<>();
-        placeVoteRepository.findAllByAppointmentId(appointment.getId()).forEach(vote ->
+        allVotes.stream().filter(vote -> vote.getType() == VoteType.PLACE).forEach(vote ->
                 placeVotes.computeIfAbsent(vote.getOptionIndex(), ignored -> new ArrayList<>()).add(vote.getUserId()));
         List<String> agreements = penaltyAgreementRepository.findAllByAppointmentId(appointment.getId()).stream()
                 .map(PenaltyAgreement::getUserId).toList();
