@@ -198,4 +198,37 @@ class AppointmentRoomApiTests {
             mvc.perform(get(path)).andExpect(status().isUnauthorized());
         }
     }
+
+    @Test
+    void penaltyTargetDefaultsOnCreateAndUpdateAndPreservesExplicitChoice() throws Exception {
+        for (String targetField : new String[]{"", ",\"target\":null",
+                ",\"target\":\"ALL_LATE\"", ",\"target\":\"LATEST_ONLY\""}) {
+            String penalty = "{\"description\":\"Coffee\",\"lateThresholdMin\":\"TEN\"" + targetField + "}";
+            String expected = targetField.contains("LATEST_ONLY") ? "LATEST_ONLY" : "ALL_LATE";
+            mvc.perform(post("/api/v1/rooms/" + roomId + "/appointments")
+                            .header("Authorization", bearer("read-host"))
+                            .contentType(MediaType.APPLICATION_JSON)
+                            .content("{\"name\":\"Penalty test\",\"penalty\":" + penalty + "}"))
+                    .andExpect(status().isCreated())
+                    .andExpect(jsonPath("$.data.penalty.target").value(expected));
+            mvc.perform(put("/api/v1/appointments/" + id + "/penalty")
+                            .header("Authorization", bearer("read-host"))
+                            .contentType(MediaType.APPLICATION_JSON).content(penalty))
+                    .andExpect(status().isOk())
+                    .andExpect(jsonPath("$.data.penalty.target").value(expected));
+            mvc.perform(get("/api/v1/appointments/" + id)
+                            .header("Authorization", bearer("read-host")))
+                    .andExpect(status().isOk())
+                    .andExpect(jsonPath("$.data.penalty.target").value(expected));
+        }
+    }
+
+    @Test
+    void creatingWithoutPenaltyKeepsPenaltyAbsent() throws Exception {
+        mvc.perform(post("/api/v1/rooms/" + roomId + "/appointments")
+                        .header("Authorization", bearer("read-host"))
+                        .contentType(MediaType.APPLICATION_JSON).content("{\"name\":\"No penalty\"}"))
+                .andExpect(status().isCreated())
+                .andExpect(jsonPath("$.data.penalty").doesNotExist());
+    }
 }

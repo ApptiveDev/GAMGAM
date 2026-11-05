@@ -134,6 +134,12 @@ public record CreateAppointmentRequest(
             @NotBlank @Size(max = 100) String description,
             @NotNull LateThreshold lateThresholdMin,
             @NotNull PenaltyTarget target) {
+        public PenaltyRequest {
+            if (target == null) {
+                target = PenaltyTarget.ALL_LATE;
+            }
+        }
+
         public PenaltyRule toDomain() {
             return new PenaltyRule(description, lateThresholdMin, target);
         }

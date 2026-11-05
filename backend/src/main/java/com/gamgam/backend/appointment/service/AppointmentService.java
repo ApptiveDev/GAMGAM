@@ -192,8 +192,9 @@ public class AppointmentService {
         Appointment appointment = findAccessible(userId, appointmentId);
         requireHost(appointment, userId);
         appointment.updatePenalty(request.toDomain());
-        penaltyAgreementRepository.deleteAllByAppointmentIdAndUserId(appointmentId, userId);
-        penaltyAgreementRepository.save(new PenaltyAgreement(appointmentId, userId));
+        if (penaltyAgreementRepository.findByAppointmentIdAndUserId(appointmentId, userId).isEmpty()) {
+            penaltyAgreementRepository.save(new PenaltyAgreement(appointmentId, userId));
+        }
         return toResponse(appointment);
     }
 
