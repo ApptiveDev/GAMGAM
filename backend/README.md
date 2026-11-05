@@ -1,292 +1,256 @@
 # GAMGAM Spring Boot Backend
 
-GAMGAM의 Java 21 기반 Spring Boot 백엔드입니다.
+Java 21, Spring Boot 4.1.1, Spring Web MVC, Bean Validation, Spring Data JPA를 사용합니다. 기본 로컬 DB는 H2이며 PostgreSQL용 프로필도 제공합니다.
 
-## 기술 구성
+## 실행 및 테스트
 
-- Java 21
-- Spring Boot
-- Gradle (Kotlin DSL)
-- Spring Web MVC
-- Bean Validation
-- Spring Data JPA
-- H2 (로컬)
-
-## 실행
-
-Windows PowerShell에서 다음을 실행합니다.
+`backend` 디렉터리에서 실행합니다.
 
 ```powershell
 .\gradlew.bat bootRun
-```
-
-기본 주소는 `http://localhost:8080`입니다.
-
-## 테스트
-
-```powershell
 .\gradlew.bat test
 ```
 
-## 기본 API 설정
+기본 주소는 `http://localhost:8080`, 기본 프로필은 `local`입니다. 상태 확인은 `GET /api/v1/health`를 사용합니다.
 
-- API는 `/api/v1` 경로 아래에 추가합니다. 기본 확인 API는 `GET /api/v1/health`입니다.
-- 성공 응답은 `{ "success": true, "data": ... }` 형식입니다.
-- 검증 및 예외 응답은 `{ "success": false, "code": "...", "message": "...", "fieldErrors": {} }` 형식입니다.
-- CORS는 `application-local.yml`에서 로컬 개발 주소를 허용합니다.
+## 인증과 공통 응답
 
-## 약속 API
+약속·투표·방·지도 API는 `Authorization: Bearer <accessToken>`을 사용합니다. 서버가 토큰에서 사용자 ID를 확인하므로 `X-User-Id`로 사용자를 지정할 수 없습니다.
 
-### 그룹(방) 생성
-
-인증 토큰(`Authorization: Bearer <accessToken>`)을 사용합니다.
-
-| Method | Path | 설명 |
+| Method | Path | 기능 |
 | --- | --- | --- |
-| POST | `/api/v1/rooms` | `{"name":"앱티브"}`로 그룹 생성, HTTP 201 |
-| GET | `/api/v1/rooms` | 내가 속한 그룹 목록 |
-| GET | `/api/v1/rooms/{roomId}` | 그룹 상세, 비멤버는 403 |
+| POST | `/api/v1/auth/signup` | 회원가입, `email`, `password`, `name`, HTTP 201 |
+| POST | `/api/v1/auth/login` | 로그인, `email`, `password` |
+| GET | `/api/v1/auth/me` | 내 정보 조회 |
+| PATCH | `/api/v1/auth/me` | 이름 변경, `name` |
+| POST | `/api/v1/auth/logout` | 로그아웃 응답 반환 |
 
-그룹 이름은 공백을 제외해 1~50자이며, 생성자는 즉시 멤버로 저장됩니다. 생성 응답의 `data.id`를 약속 생성 경로의 `roomId`로 사용합니다. 그룹 멤버 초대·가입은 아직 구현되지 않았습니다.
+로그인 응답에는 `tokenType`, `accessToken`, `expiresIn`, `user`가 포함됩니다. 현재 로그아웃 API는 토큰 폐기 목록을 관리하지 않으며 클라이언트에서 토큰을 삭제해야 합니다.
 
-UI처럼 약속 이름만 정하는 경우에는 `POST /api/v1/rooms/{roomId}/appointments`에 `{"name":"토요일 등산"}`을 보내면 됩니다. 시간·장소 후보가 비어 있는 `BOTH` 템플릿의 `COORDINATING` 약속이 생성되고, 생성자는 호스트가 됩니다. 이후 기존 후보 추가·투표 API로 시간과 장소를 정할 수 있습니다.
+- 성공 응답은 `{ "success": true, "data": ... }`입니다.
+- 오류 응답은 `{ "success": false, "code": "...", "message": "...", "fieldErrors": ... }`입니다.
+- 검증 실패는 400 `VALIDATION_ERROR`, 잘못된 JSON·enum 등은 400 `BAD_REQUEST`입니다.
+- 존재하지 않는 약속은 404 `APPOINTMENT_NOT_FOUND`, 방 접근 거부는 403 `ROOM_ACCESS_DENIED`입니다.
 
-### 약속 생성
+## 방과 약속 조회
 
-`POST /api/v1/rooms/{roomId}/appointments`
-
-방 멤버가 방 ID와 약속 이름을 전달하면 해당 방에 약속을 생성하고 공유 링크를 함께 반환합니다. 생성 성공 시 HTTP 201을 반환하며, 생성자는 호스트로 저장됩니다. 고급 생성 요청에서는 템플릿과 시간·장소 정보를 함께 전달할 수 있습니다.
-
-| 필드 | 필수 | 규칙 |
+| Method | Path | 기능 |
 | --- | --- | --- |
-| `name` | 예 | 공백 불가, 최대 50자 |
-| `template` | 아니오 | 생략하면 `BOTH`, 또는 `ALL`, `TIME_ONLY`, `PLACE_ONLY` |
-| `candidatesTime` | 템플릿에 따라 | 미래 시각 목록 |
-| `confirmedTime` | 템플릿에 따라 | 미래 시각 |
-| `candidatesPlace` | 템플릿에 따라 | 장소 목록 |
-| `confirmedPlace` | 템플릿에 따라 | 장소 |
-| `penalty` | 아니오 | 지각 벌칙 |
-| `reward` | 아니오 | 보상 |
-| `locationSharing` | 아니오 | 위치 공유 시간 설정 |
+| POST | `/api/v1/rooms` | `{"name":"스터디"}`로 방 생성, HTTP 201 |
+| GET | `/api/v1/rooms` | 내가 속한 방 목록 |
+| GET | `/api/v1/rooms/{roomId}` | 방 상세 |
+| GET | `/api/v1/appointments` | 내가 속한 방들의 약속 목록 |
+| GET | `/api/v1/rooms/{roomId}/appointments` | 해당 방의 약속 목록 |
+| GET | `/api/v1/appointments/{id}` | 약속 상세 |
 
-`template`을 생략한 이름만 있는 요청은 시간·장소를 비워 둡니다. 템플릿을 지정한 요청은 아래 규칙을 따릅니다.
-조율 대상이면 후보를 2개 이상 보내고 확정값은 비워 둡니다. 이미 정해진 항목이면 확정값을 보내고 후보는 비워 둡니다.
+방 이름은 앞뒤 공백 제거 후 1~50자이며 생성자는 방 멤버로 등록됩니다. 방 멤버는 아직 투표하지 않았어도 방의 약속 목록·상세·투표 현황을 볼 수 있습니다. 조회만으로 약속 참여자가 되지는 않습니다. 약속 목록은 생성 시각 내림차순입니다.
 
-| 템플릿 | 설명 | 시간 | 장소 | 초기 상태 |
-| --- | --- | --- | --- | --- |
-| `ALL` | 모두 정해짐 | `confirmedTime` | `confirmedPlace` | `CONFIRMED` |
-| `TIME_ONLY` | 시간만 조율 | `candidatesTime` (2개 이상) | `confirmedPlace` | `COORDINATING` |
-| `PLACE_ONLY` | 장소만 조율 | `confirmedTime` | `candidatesPlace` (2개 이상) | `COORDINATING` |
-| `BOTH` | 시간·장소 모두 조율 | `candidatesTime` (2개 이상) | `candidatesPlace` (2개 이상) | `COORDINATING` |
+## 약속 생성과 이름 변경
 
-**장소 (`confirmedPlace`, `candidatesPlace` 항목)**
+`AppointmentController`가 약속 생성·조회·이름 변경·확정·멤버 관리·벌칙을 담당합니다.
 
-| 필드 | 필수 | 범위 |
-| --- | --- | --- |
-| `name` | 예 | 공백 불가, 최대 100자 |
-| `latitude` | 아니오 | -90 ~ 90 |
-| `longitude` | 아니오 | -180 ~ 180 |
+`POST /api/v1/rooms/{roomId}/appointments`로 약속을 생성하며 HTTP 201을 반환합니다. 방 멤버가 생성할 수 있고 생성자는 약속 방장(`HOST`)으로 등록됩니다.
 
-좌표는 선택이지만, 보내려면 `latitude`와 `longitude`를 함께 보내야 합니다.
-
-**벌칙 (`penalty`)**
-
-| 필드 | 필수 | 값 |
-| --- | --- | --- |
-| `description` | 예 | 공백 불가, 최대 100자 |
-| `lateThresholdMin` | 예 | `FIVE`(5분), `TEN`(10분), `FIFTEEN`(15분) |
-| `target` | 예 | `LATEST_ONLY`(가장 늦은 사람만), `ALL_LATE`(늦은 사람 전체) |
-
-`lateThresholdMin`은 숫자가 아니라 enum 이름을 받습니다.
-
-**보상 (`reward`)**: `description` (필수, 공백 불가, 최대 100자)
-
-**위치 공유 (`locationSharing`)**
-
-| 필드 | 필수 | 범위 | 기본값 |
-| --- | --- | --- | --- |
-| `startMinutesBefore` | 아니오 | 0 ~ 240 | 30 (약속 30분 전부터 공유 시작) |
-| `maxMinutesAfter` | 아니오 | 0 ~ 240 | 30 (약속 30분 후 자동 종료) |
-
-`locationSharing` 전체를 생략하거나 일부 필드만 보내도 빠진 값은 기본값으로 채웁니다.
-
-### 약속 조회
-
-`GET /api/v1/appointments/{id}`
-
-생성 응답의 `id`로 약속 하나를 조회합니다. 해당 방의 멤버만 조회할 수 있으며 응답 형식은 생성 응답과 같습니다.
-
-`GET /api/v1/rooms/{roomId}/appointments`로 해당 방의 약속 목록을 생성 시각 역순으로 조회합니다. 방 멤버만 사용할 수 있습니다.
-
-### 응답
-
-성공 응답의 `data`에는 `id`, `roomId`, `name`, `template`, `candidatesTime`, `confirmedTime`, `candidatesPlace`,
-`confirmedPlace`, `penalty`, `reward`, `locationSharing`, `status`, `shareUrl`, `createdAt`이 포함됩니다.
-
-- `id`는 UUID 문자열입니다.
-- `status`는 `COORDINATING`(조율 중), `CONFIRMED`(확정), `COMPLETED`(종료) 중 하나입니다.
-- `shareUrl`은 `{app.share.base-url}/appointments/{id}` 형식입니다. 로컬 기준 주소는 `http://localhost:3000`입니다.
-- 시간은 요청에 어떤 오프셋을 보내든 UTC로 저장하고, 응답은 항상 KST(`+09:00`)로 반환합니다. 시각 자체는 바뀌지 않습니다.
-- 사용하지 않는 항목(예: 확정된 약속의 후보 목록)은 `null` 또는 빈 배열입니다.
-- 로컬에서는 H2 인메모리 DB를 사용하므로 서버를 재시작하면 데이터가 초기화됩니다.
-
-검증 오류는 HTTP 400과 `VALIDATION_ERROR`(위반 필드는 `fieldErrors`), 읽을 수 없는 요청 본문(잘못된 enum 값, 깨진 JSON 등)은
-400과 `BAD_REQUEST`, 없는 약속은 404와 `APPOINTMENT_NOT_FOUND`를 반환합니다.
-
-백엔드 실행 후 PowerShell에서 API를 직접 확인할 수 있습니다. `confirmedTime`은 미래 시각이어야 합니다.
-
-```powershell
-$body = @'
-{
-  "name": "홍대 저녁 모임",
-  "template": "ALL",
-  "confirmedTime": "2030-01-01T19:00:00+09:00",
-  "confirmedPlace": { "name": "연남동", "latitude": 37.5563, "longitude": 126.9236 },
-  "penalty": { "description": "커피 사기", "lateThresholdMin": "TEN", "target": "LATEST_ONLY" },
-  "reward": { "description": "커피 쿠폰" }
-}
-'@
-
-$created = Invoke-RestMethod -Method Post -Uri 'http://localhost:8080/api/v1/rooms/demo-room/appointments' `
-  -ContentType 'application/json; charset=utf-8' `
-  -Body ([System.Text.Encoding]::UTF8.GetBytes($body))
-$created | ConvertTo-Json -Depth 5
-
-Invoke-RestMethod -Uri "http://localhost:8080/api/v1/appointments/$($created.data.id)" | ConvertTo-Json -Depth 5
+```json
+{ "name": "주말 모임" }
 ```
 
-### 그룹 멤버십
+`template`을 생략하면 시간·장소 후보가 비어 있는 `BOTH`, `COORDINATING` 상태로 생성됩니다. 이 경우 확정 시간·장소는 생략하고 후보 목록도 생략하거나 빈 배열로 보내야 합니다. 이후 후보 추가 API를 이용합니다.
 
-그룹과 멤버십은 DB에 저장되며 `RoomAccess.requireMember(roomId, userId)`가 방별 약속 생성·조회·투표 권한을 검사합니다. 없는 그룹은 `ROOM_NOT_FOUND`(404), 비멤버는 `ROOM_ACCESS_DENIED`(403)를 반환합니다. 로컬 프로필은 기존 테스트용 `demo-room`도 유지합니다. 지도용 `MockRoomRepository`는 그룹 멤버십에 사용하지 않습니다.
+| 필드 | 규칙 |
+| --- | --- |
+| `name` | 필수, 공백 불가, 최대 50자 |
+| `template` | 선택, `ALL`, `TIME_ONLY`, `PLACE_ONLY`, `BOTH` |
+| `candidatesTime` | 템플릿에 따른 미래 시간 목록 |
+| `confirmedTime` | 템플릿에 따른 미래 시간 |
+| `candidatesPlace` | 템플릿에 따른 장소 목록 |
+| `confirmedPlace` | 템플릿에 따른 확정 장소 |
+| `penalty` | 선택, 벌칙 규칙 |
+| `reward` | 선택, `description` 필수·최대 100자 |
+| `locationSharing` | 선택, 위치 공유 시간 설정 |
 
-## 참여자 투표·후보 시간 및 장소 추가 API
+명시적으로 템플릿을 보내면 다음 규칙을 적용합니다. 조율하는 항목은 후보가 2개 이상 필요하고 확정값은 생략합니다. 이미 정한 항목은 확정값이 필수이며 후보는 생략하거나 빈 배열로 보냅니다.
 
-시간과 장소 모두 여러 후보를 선택할 수 있습니다. 방 멤버가 둘 중 하나에라도 투표하면 해당 약속의 참여자로 등록됩니다.
-시간·장소 투표를 모두 취소하면 참여 신청도 취소됩니다. 방의 다른 약속에는 영향을 주지 않습니다.
+| 템플릿 | 시간 | 장소 | 초기 상태 |
+| --- | --- | --- | --- |
+| `ALL` | `confirmedTime` | `confirmedPlace` | `CONFIRMED` |
+| `TIME_ONLY` | `candidatesTime` | `confirmedPlace` | `COORDINATING` |
+| `PLACE_ONLY` | `confirmedTime` | `candidatesPlace` | `COORDINATING` |
+| `BOTH` | `candidatesTime` | `candidatesPlace` | `COORDINATING` |
 
-`시간·장소 상관없이 참여`는 별도 선택이며 특정 후보 투표와 동시에 유지할 수 없습니다.
+장소는 `name`이 필수이며 최대 100자입니다. `latitude`(-90~90)와 `longitude`(-180~180)는 함께 보내거나 함께 생략합니다. 이름에서 좌표를 자동으로 찾는 기능은 없습니다.
 
-- 상관없이 참여를 켜면 내 시간·장소 투표를 모두 취소하고 참여자로 등록합니다.
-- 상관없이 참여 상태에서 특정 후보를 선택하면 상관없이 참여가 해제되고 해당 후보 투표로 전환됩니다.
-- 상관없이 참여를 끄면, 남은 후보 투표가 없는 경우 참여 신청도 취소됩니다.
-- 이미 비어 있는 시간/장소 투표에 빈 목록을 다시 보내는 것은 상관없이 참여 선택을 해제하지 않습니다.
-- 후보 시간·장소 추가만으로는 투표나 참여 신청이 되지 않습니다.
-- 확정/종료된 약속에서는 투표·참여 신청·후보 추가를 변경할 수 없습니다.
+`PATCH /api/v1/appointments/{id}`에 `{"name":"변경한 모임"}`을 보내 이름을 변경합니다. 해당 방 멤버인 약속 방장만 가능하며 앞뒤 공백 제거 후 1~50자입니다. 현재는 약속 상태에 따른 이름 변경 제한이 없습니다.
 
-### API 목록
+## 투표와 참여
 
-| Method | Path | 요청 본문 / 기능 |
+`AppointmentVotingController`가 투표 조회·변경과 후보 추가를 담당합니다.
+
+| Method | Path | 요청 |
 | --- | --- | --- |
-| GET | `/api/v1/appointments/{id}/votes` | 후보별 득표·내 투표·약속 참여자 조회 |
+| GET | `/api/v1/appointments/{id}/votes` | 투표 현황 조회 |
 | PUT | `/api/v1/appointments/{id}/votes/time` | `{"optionIndexes":[0,1]}` |
 | PUT | `/api/v1/appointments/{id}/votes/place` | `{"optionIndexes":[0,1]}` |
 | PUT | `/api/v1/appointments/{id}/votes/regardless` | `{"selected":true}` 또는 `false` |
 | POST | `/api/v1/appointments/{id}/time-candidates` | `{"time":"2030-01-03T18:00:00+09:00"}` |
 | POST | `/api/v1/appointments/{id}/place-candidates` | `{"name":"새 카페","latitude":37.5,"longitude":127.0}` |
 
-투표 PUT은 해당 종류의 **내 선택 전체를 교체**합니다. 일부 후보만 추가하는 API가 아닙니다.
-`{"optionIndexes":[]}`로 해당 종류의 투표를 모두 취소합니다. 필드 누락, `null`, 음수 인덱스는 허용하지 않습니다.
-같은 인덱스를 반복해 보내도 한 표로 처리합니다. 다른 사용자의 표와 다른 종류의 내 표는 유지됩니다.
+- 방 멤버가 시간 또는 장소 후보에 투표하면 약속 참여자로 등록됩니다. 후보 추가만으로는 참여하거나 투표하지 않습니다.
+- 투표 PUT은 해당 종류의 내 선택 전체를 교체합니다. 빈 배열 `[]`로 해당 종류의 투표를 모두 취소합니다. 다른 종류의 내 표와 다른 사람의 표는 유지됩니다.
+- 인덱스는 0부터 시작합니다. 필드 생략, `null`, 음수, 범위 밖 인덱스는 거절하며 중복 인덱스는 한 표로 처리합니다.
+- 시간·장소 표가 모두 없고 상관없이 참여도 꺼져 있으면 일반 참여자의 멤버·투표·벌칙 동의 기록을 제거합니다.
+- 방장은 투표를 모두 취소해도 `HOST` 멤버로 유지됩니다. 다만 실제 표나 상관없이 참여 표시가 없으면 투표 응답의 참여자 목록에는 포함되지 않습니다.
+- 상관없이 참여를 켜면 내 시간·장소 표를 모두 지웁니다. 특정 후보에 투표하면 상관없이 참여가 해제됩니다. 상관없이 참여자는 특정 후보의 득표수에 합산하지 않습니다.
+- 후보는 기존 목록 뒤에 추가하며 삭제·재정렬 API는 없습니다.
+- 시간 후보는 미래 시각과 시간대가 필요합니다. 마이크로초 정밀도로 반올림하며 같은 순간의 후보는 409 `DUPLICATE_CANDIDATE`입니다.
+- 장소 이름은 앞뒤 공백을 제거합니다. 이름의 대소문자·앞뒤 공백을 제외하고 이름과 좌표가 모두 같으면 중복입니다.
+- `COORDINATING` 상태에서 해당 템플릿이 조율하는 항목만 투표·후보 추가가 가능합니다. 확정된 항목의 투표 변경·후보 추가는 막습니다.
+- 조율 대상 중 하나라도 확정되면 상관없이 참여 전환도 막습니다. 생성 시 미리 지정한 확정 항목은 이 제한의 대상이 아닙니다.
 
-후보 인덱스는 0부터 시작하며 기존 순서는 유지하고 새 시간·장소는 각각 목록 마지막에 추가합니다. 후보 삭제·재정렬 API는 없습니다.
-장소 이름 앞뒤 공백은 제거합니다. 대소문자·앞뒤 공백을 제외한 이름과 좌표가 모두 같으면 중복(409)으로 거부하고,
-좌표가 다른 동명 장소는 허용합니다. 이름은 필수이며 좌표는 생략하거나 위도·경도를 함께 보내야 합니다.
+투표 응답 `data`에는 다음 필드가 포함됩니다.
 
-시간 후보는 미래 시각을 오프셋과 함께 보내야 합니다. 소수점 초는 DB 정밀도에 맞춰 마이크로초 단위로 반올림합니다. UTC로 저장하고 KST로 응답하며, 오프셋이 달라도 같은 순간이면 중복(409)으로 거부합니다.
-시간 후보 추가는 `TIME_ONLY`, `BOTH`, 장소 후보 추가는 `PLACE_ONLY`, `BOTH` 템플릿에서 가능합니다.
-장소 이름만 보내면 좌표는 비어 있습니다. 서버는 이름을 좌표로 변환하지 않으며, 현재 프런트의 이름 입력에도 자동 좌표 조회가 없습니다.
+| 필드 | 의미 |
+| --- | --- |
+| `appointmentId`, `roomId`, `status` | 약속·방·상태 |
+| `participating`, `participantIds` | 내 참여 여부와 실제 참여자 ID 목록 |
+| `participatingRegardless`, `regardlessParticipantIds` | 상관없이 참여 여부와 해당 사용자 목록 |
+| `timeOptions` | `index`, `time`, `voteCount`, `voterIds`, `votedByMe` |
+| `placeOptions` | `index`, `place`, `voteCount`, `voterIds`, `votedByMe` |
 
-응답 `data`:
+이전 `POST /votes/time/{index}`, `PUT /votes/place/{index}`, `DELETE /votes/place`, `POST /options/time` 경로는 제거되었습니다. 취소도 현재 PUT API의 빈 배열로 처리합니다.
 
-- `appointmentId`, `roomId`, `status`
-- `participating`: 내가 이 약속에 참여 중인지
-- `participantIds`: 실제 약속 참여자의 ID 목록(방 멤버 전체가 아님)
-- `participatingRegardless`, `regardlessParticipantIds`: 상관없이 참여 선택 여부와 선택한 사용자 목록
-- `timeOptions`: `index`, `time`(KST), `voteCount`, `voterIds`, `votedByMe`
-- `placeOptions`: `index`, `place`, `voteCount`, `voterIds`, `votedByMe`
+## 약속 확정과 완료
 
-상관없이 참여한 사람은 특정 후보의 득표 수에는 포함되지 않습니다.
-시간·장소가 이미 확정되어 생성되는 `ALL` 템플릿은 투표 API 대상이 아닙니다.
+약속 방장이 확정 API를 호출합니다. 투표 수가 변하는 것만으로 자동 확정되지는 않습니다.
 
-### 로컬에서 실행해 보기
-
-```powershell
-$voteHeaders = @{ 'X-User-Id' = 'u-doyun' }
-$voteUrl = 'http://localhost:8080/api/v1/appointments/demo-hongdae'
-
-# 장소 2개 선택: 시간에 투표하지 않아도 참여 신청됨
-Invoke-RestMethod -Method Put -Uri "$voteUrl/votes/place" -Headers $voteHeaders `
-  -ContentType 'application/json' -Body '{"optionIndexes":[0,1]}'
-
-# 상관없이 참여로 전환: 위 장소 투표는 취소됨
-Invoke-RestMethod -Method Put -Uri "$voteUrl/votes/regardless" -Headers $voteHeaders `
-  -ContentType 'application/json' -Body '{"selected":true}'
-
-Invoke-RestMethod -Uri "$voteUrl/votes" -Headers $voteHeaders | ConvertTo-Json -Depth 8
-```
-
-투표 교체·참여 방식 전환·후보 추가는 약속 행의 DB 잠금을 공유하고 같은 트랜잭션에서 저장합니다.
-추후 확정/후보 변경 API도 `AppointmentRepository.findByIdForUpdate`로 같은 잠금을 획득한 뒤 상태를 확인해야 합니다.
-H2 통합 테스트에는 동시 투표 교체, 동시 후보 추가, 상관없이 참여와 특정 후보 투표의 경합을 포함합니다.
-
-## 같은 방 참여자 지도 API
-
-`GET /api/v1/rooms/a-hongdae/map?latitude=37.5563&longitude=126.9236`
-
-내 위도·경도와 방 ID를 전달하면 나와 같은 방에 있는 참여자들의 위치를 반환합니다.
-거리로 참여자를 제외하지 않습니다.
-
-| 파라미터 | 필수 | 범위 |
+| Method | Path | 요청과 동작 |
 | --- | --- | --- |
-| `roomId` (경로) | 예 | 아래 목업 방 ID |
-| `latitude` | 예 | -90 ~ 90 |
-| `longitude` | 예 | -180 ~ 180 |
+| POST | `/api/v1/appointments/{id}/confirm/time` | 시간 확정. 본문 생략 또는 `{}`이면 최다 득표, `{"optionIndex":1}`이면 방장 선택 |
+| POST | `/api/v1/appointments/{id}/confirm/place` | 장소 확정. 본문 생략 또는 `{}`이면 최다 득표, `{"optionIndex":0}`이면 방장 선택 |
+| POST | `/api/v1/appointments/{id}/confirm` | 남은 조율 항목을 함께 확정. `{}` 또는 `{"timeOptionIndex":1,"placeOptionIndex":0}` |
+| POST | `/api/v1/appointments/{id}/complete` | 방장이 `CONFIRMED` 약속을 `COMPLETED`로 변경 |
 
-인증 연동 전 테스트 사용자 ID는 서버에서 `u-yeeun`(예은)으로 고정합니다. 요청으로 다른 사용자를 지정할 수 없습니다.
-이는 실제 로그인 인증이 아니며, 실서비스에서는 인증된 사용자 ID와 실제 방 멤버십을 연결해야 합니다.
+- 인덱스 생략 또는 `null`은 최다 득표 후보를 선택합니다. 동률이면 가장 작은 인덱스, 모든 후보가 0표여도 첫 번째 후보를 선택합니다.
+- 인덱스를 지정하면 득표수와 관계없이 해당 후보로 확정합니다. 후보가 없거나 인덱스가 유효하지 않으면 거절합니다.
+- 개별 확정은 해당 방 멤버인 약속 방장만 호출할 수 있습니다. 이미 확정한 항목은 재확정할 수 없습니다.
+- 전체 확정 API는 아직 확정하지 않은 조율 항목을 처리합니다. 본문은 필수이며 자동 선택 시 `{}`를 보냅니다.
+- 시간과 장소가 모두 정해지면 `CONFIRMED`가 됩니다. 일부만 정해졌다면 `COORDINATING`을 유지하며 남은 항목을 계속 투표할 수 있습니다.
 
-| 방 ID | 방 이름 | 참여자 |
+## 약속 나가기와 강퇴
+
+| Method | Path | 동작 |
 | --- | --- | --- |
-| `a-hongdae` | 홍대 저녁 모임 | 예은, 도윤, 서아, 민준, 하린 |
-| `a-hiking` | 토요일 등산 | 도윤, 예은, 서아 |
-| `a-donggi` | 동기 모임 | 예은, 도윤, 서아, 민준 |
-| `a-seongsu` | 성수 브런치 | 서아, 예은, 도윤, 하린 |
-| `a-board` | 금요일 보드게임 | 서아, 하린 (예은 미참여, 403) |
+| DELETE | `/api/v1/appointments/{id}/members/me` | 본인의 약속 참여 취소 |
+| DELETE | `/api/v1/appointments/{id}/members/{memberId}` | 약속 방장이 참여자 강퇴 |
 
-성공 응답의 `data`에는 `roomId`, `roomName`, `currentUserId`, `participants`가 포함됩니다.
-각 참여자는 `id`, `name`, `latitude`, `longitude`, `distanceMeters`, `self`, `mock` 필드를 가집니다.
-나는 전달받은 좌표를 그대로 사용하고 `self: true`, `mock: false`로 표시합니다.
-클라이언트가 수동 테스트 좌표를 보낼 수도 있으므로 `mock: false`가 GPS 정확도를 보장하는 것은 아닙니다.
-친구들은 `self: false`, `mock: true`이며 내 위치 기준 900m~5km에 목업 좌표를 생성합니다.
-내 위치를 바꾸면 목업 친구 좌표도 함께 달라집니다. 위치 저장이나 실제 친구 위치 추적은 하지 않습니다.
-응답은 나를 먼저, 친구들을 직선거리순으로 제공합니다.
+`memberId`에는 대상 사용자의 ID를 넣습니다. 방장 본인의 나가기·강퇴는 거절합니다. 참여자를 제거할 때 멤버, 시간·장소 투표, 벌칙 동의를 같은 트랜잭션에서 삭제합니다. 강퇴는 재참여 차단 기능이 아니므로 방 멤버는 투표 가능한 상태에서 다시 투표해 참여할 수 있습니다.
 
-좌표 오류는 HTTP 400과 `VALIDATION_ERROR`, 없는 방은 404와 `ROOM_NOT_FOUND`,
-내가 참여하지 않은 방은 403과 `ROOM_ACCESS_DENIED`를 반환합니다.
+## 벌칙과 동의
 
-백엔드 실행 후 PowerShell에서 API를 직접 확인할 수 있습니다.
+벌칙 객체를 생략하면 벌칙 없이 생성합니다. 벌칙을 설정할 때는 다음 값을 사용합니다.
+
+| 필드 | 규칙 |
+| --- | --- |
+| `description` | 필수, 공백 불가, 최대 100자 |
+| `lateThresholdMin` | 필수, `FIVE`, `TEN`, `FIFTEEN` 문자열로 각각 5·10·15분 지정 |
+| `target` | `LATEST_ONLY` 또는 `ALL_LATE`. 생략·`null`이면 `ALL_LATE` |
+
+`ALL_LATE`는 설정한 지각 기준에 해당하는 모든 사람, `LATEST_ONLY`는 가장 늦은 사람을 대상으로 하는 규칙입니다. 기본값은 약속 생성과 벌칙 수정에 동일하게 적용합니다.
+
+| Method | Path | 동작 |
+| --- | --- | --- |
+| PUT | `/api/v1/appointments/{id}/penalty` | 방장이 벌칙 객체를 본문으로 보내 설정·수정 |
+| POST | `/api/v1/appointments/{id}/penalty/agreement` | 약속 멤버의 동의·취소 토글. 벌칙이 있어야 함 |
+
+현재 벌칙 수정 시 수정한 방장을 동의자로 등록합니다. 기존 방장 동의가 있으면 유지해 중복 저장을 피합니다. 다른 참여자의 기존 동의도 유지되며, 전원 동의를 확정·적용 조건으로 강제하는 처리는 없습니다. 약속 생성 시 벌칙을 포함하는 경로에는 이 수정 API의 자동 동의 처리가 없습니다.
+
+**팀 논의 대기** — 벌칙 변경 시 동의 초기화, 전원 동의 여부, 미동의자 처리, 재동의 중 적용 기준, 수정 가능한 시점은 추가 논의 후 반영합니다. 위 설명은 현재 구현 동작입니다.
+
+## 약속 응답과 저장 구조
+
+약속 생성·목록·상세 응답에는 다음 정보가 포함됩니다.
+
+- 기본 정보와 설정 — `id`, `roomId`, `name`, `template`, `status`, `createdAt`, `hostId`
+- 후보·확정 정보 — `candidatesTime`, `confirmedTime`, `candidatesPlace`, `confirmedPlace`
+- 규칙 — `penalty`, `reward`, `locationSharing`
+- 멤버·투표·동의 — `members`, `timeVotes`, `placeVotes`, `penaltyAgreedUserIds`
+- 기존 공유 관련 필드 — `shareUrl`, `inviteCode`
+
+`timeVotes`와 `placeVotes`는 후보 인덱스별 사용자 ID 목록입니다. 후보·확정 시간은 UTC로 저장하고 응답에서는 KST(`+09:00`)로 변환합니다. `createdAt`은 `Instant`입니다.
+
+약속 멤버는 `AppointmentMember`로 통합했습니다. 역할은 `HOST`·`MEMBER`이고 상관없이 참여 여부는 `regardlessOfTimeAndPlace`로 관리합니다. 시간·장소 투표는 `AppointmentVote`와 `VoteType.TIME`·`PLACE`로 통합했습니다. 투표 변경·후보 추가·확정·참여자 제거 등의 변경 작업은 약속 행 잠금을 사용해 처리합니다.
+
+사용하지 않는 엔티티의 이전 `confirm()`과 서비스의 `isMember()` 메서드는 제거했습니다. 확정 처리는 서비스의 공통 선택 로직과 엔티티의 `confirmTime()`·`confirmPlace()`를 사용합니다.
+
+## 초대 관련 현재 상태
+
+제품 방향은 **방으로 초대하고 약속은 방 안에서 투표로 참여**하는 것입니다. 기존 약속 초대 코드와 가입 API 정리는 별도 논의 대상으로 남아 있습니다.
+
+현재 `POST /api/v1/appointments/join`은 `{"inviteCode":"..."}`를 받아 약속 멤버를 등록하는 기존 API입니다. `inviteCode` 생성·조회와 응답 필드, `{app.share.base-url}/appointments/{id}` 형태의 `shareUrl`도 남아 있습니다. 방 초대·가입 API는 아직 구현되어 있지 않습니다.
+
+## 위치 공유와 지도
+
+| Method | Path | 요청 |
+| --- | --- | --- |
+| GET | `/api/v1/rooms/{roomId}/map` | 쿼리 `latitude`, `longitude` |
+| PUT | `/api/v1/rooms/{roomId}/location` | `latitude`, `longitude`, `sharingEnabled`, 선택적으로 `shareLevel`, `speedKmh`, `transport` |
+
+현재 지도 API의 경로 변수 이름은 `roomId`이지만 서비스는 이를 **약속 ID**로 조회합니다. 호출할 때 약속 ID를 넣어야 합니다. 약속 멤버이며 약속이 `CONFIRMED` 상태이고 위치 공유 시간 범위 안에 있어야 합니다.
+
+`locationSharing.startMinutesBefore`, `maxMinutesAfter`는 각각 0~240분이며 기본값은 각각 30분입니다. 객체나 필드를 생략하면 기본값을 적용합니다.
+
+지도는 공유가 켜져 있고 최근 60초 안에 갱신된 위치를 반환합니다. 응답은 `roomId`, `roomName`, `currentUserId`, `participants`이며 참가자는 `id`, `name`, `latitude`, `longitude`, `distanceMeters`, `self`, `mock`, `updatedAt`을 포함합니다. 현재 실제 저장 위치를 사용하며 `mock`은 `false`입니다. 자신을 먼저, 나머지는 거리순으로 정렬합니다.
+
+위도·경도 범위는 각각 -90~90, -180~180입니다. `shareLevel`은 `ALL`, `BASIC`, `CLOSE`, `OFF`이며 생략 시 `BASIC`, `OFF`는 공유 비활성화로 처리합니다.
+
+## PowerShell 호출 예시
+
+회원가입·로그인 후 실제로 생성한 방과 약속 ID를 사용합니다. 아래 예시는 같은 PowerShell 세션에서 순서대로 실행합니다.
 
 ```powershell
-Invoke-RestMethod -Uri 'http://localhost:8080/api/v1/rooms/a-hongdae/map?latitude=37.5563&longitude=126.9236' | ConvertTo-Json -Depth 5
+$base = 'http://localhost:8080/api/v1'
+$signup = @{ email = 'demo@example.com'; password = 'demo-password-123'; name = 'Demo' } | ConvertTo-Json
+Invoke-RestMethod -Method Post -Uri "$base/auth/signup" -ContentType 'application/json' -Body $signup
+$loginBody = @{ email = 'demo@example.com'; password = 'demo-password-123' } | ConvertTo-Json
+$login = Invoke-RestMethod -Method Post -Uri "$base/auth/login" -ContentType 'application/json' -Body $loginBody
+$headers = @{ Authorization = "Bearer $($login.data.accessToken)" }
+$room = Invoke-RestMethod -Method Post -Uri "$base/rooms" -Headers $headers -ContentType 'application/json' -Body '{"name":"Demo room"}'
+$created = Invoke-RestMethod -Method Post -Uri "$base/rooms/$($room.data.id)/appointments" -Headers $headers -ContentType 'application/json' -Body '{"name":"Demo meeting"}'
+$url = "$base/appointments/$($created.data.id)"
+$future = (Get-Date).AddDays(1).ToString('o')
+$timeBody = @{ time = $future } | ConvertTo-Json
+Invoke-RestMethod -Method Post -Uri "$url/time-candidates" -Headers $headers -ContentType 'application/json' -Body $timeBody
+Invoke-RestMethod -Method Post -Uri "$url/place-candidates" -Headers $headers -ContentType 'application/json' -Body '{"name":"Cafe"}'
+Invoke-RestMethod -Method Put -Uri "$url/votes/time" -Headers $headers -ContentType 'application/json' -Body '{"optionIndexes":[0]}'
+Invoke-RestMethod -Method Put -Uri "$url/votes/place" -Headers $headers -ContentType 'application/json' -Body '{"optionIndexes":[0]}'
+Invoke-RestMethod -Uri "$url/votes" -Headers $headers | ConvertTo-Json -Depth 8
+Invoke-RestMethod -Method Post -Uri "$url/confirm" -Headers $headers -ContentType 'application/json' -Body '{}'
+Invoke-RestMethod -Uri $url -Headers $headers | ConvertTo-Json -Depth 8
 ```
 
-## 환경별 설정
+## 환경별 DB와 설정
 
-- `application.yml`: 공통 설정 및 기본 프로필(`local`)
-- `application-local.yml`: 로컬 CORS 설정 및 공유 링크 설정
-- `application-prod.yml`: 운영 CORS 설정 및 공유 링크 설정
+| 파일 | 역할 |
+| --- | --- |
+| `application.yml` | 공통 설정, 기본 프로필 `local`, JDBC 시간대 UTC |
+| `application-local.yml` | H2 인메모리 DB, 로컬 CORS·JWT·공유 주소 |
+| `application-postgres.yml` | PostgreSQL 연결, `ddl-auto: update` |
+| `application-prod.yml` | 운영 JWT·CORS·공유 주소 환경변수 |
 
-운영 환경에서는 아래 환경 변수가 **모두 필요**합니다. 하나라도 없으면 애플리케이션이 시작되지 않습니다.
+로컬 H2 URL은 다음과 같습니다.
 
-| 환경 변수 | 설명 | 예시 |
-|---|---|---|
-| `CORS_ALLOWED_ORIGINS` | 허용할 프론트엔드 도메인 (쉼표로 구분) | `https://app.example.com,https://www.example.com` |
-| `SHARE_BASE_URL` | 약속 공유 링크의 기준 주소 (프론트엔드 주소 1개) | `https://app.example.com` |
+```text
+jdbc:h2:mem:gamgam;MODE=PostgreSQL;DATABASE_TO_LOWER=TRUE;DEFAULT_NULL_ORDERING=HIGH;DB_CLOSE_DELAY=-1
+```
+
+`DB_CLOSE_DELAY=-1`은 마지막 연결이 닫혀도 JVM이 실행 중인 동안 인메모리 DB를 유지합니다. 서버를 종료하면 데이터가 사라지며, 로컬 `ddl-auto: create-drop`도 종료 시 스키마를 삭제합니다. `MODE=PostgreSQL`은 H2 호환 모드입니다. 기본 실행은 H2를 사용합니다.
+
+PostgreSQL을 사용할 때는 실행 중인 DB를 준비하고 `postgres` 프로필을 선택합니다. `DB_URL`, `DB_USERNAME`, `DB_PASSWORD`를 설정할 수 있으며 기본값은 각각 `jdbc:postgresql://localhost:5432/gamgam`, `gamgam`, `gamgam`입니다.
 
 ```powershell
-$env:CORS_ALLOWED_ORIGINS = "https://app.example.com,https://www.example.com"
-$env:SHARE_BASE_URL = "https://app.example.com"
-.\gradlew.bat bootRun --args="--spring.profiles.active=prod"
+.\gradlew.bat bootRun --args="--spring.profiles.active=postgres"
 ```
 
-투표와 생성 후 후보 추가는 AppointmentVotingController를 사용합니다. 시간·장소 선택 취소는 각 PUT API에 빈 optionIndexes 배열을 보내 처리합니다. 기존 POST /votes/time/{index}, PUT /votes/place/{index}, DELETE /votes/place, POST /options/time 경로는 제거되었습니다.
+`prod` 프로필은 `JWT_SECRET`, `CORS_ALLOWED_ORIGINS`, `SHARE_BASE_URL`을 요구합니다. `JWT_EXPIRATION_SECONDS`는 선택이며 기본 3600초입니다. 운영 프로필의 DB 설정은 현재 주석 상태이므로 배포 시 사용할 DB 연결과 스키마 관리 설정을 별도로 구성해야 합니다.
+
+로컬 CORS는 `localhost`·`127.0.0.1`의 포트를 허용하고 로컬 공유 주소는 `http://localhost:3000`입니다.
