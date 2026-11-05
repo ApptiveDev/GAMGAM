@@ -214,7 +214,7 @@ class CreateAppointmentRequestValidationTests {
     void 벌칙_필수값이_비면_실패한다() {
         assertThat(validator.validate(new PenaltyRequest("", LateThreshold.TEN, PenaltyTarget.ALL_LATE))).isNotEmpty();
         assertThat(validator.validate(new PenaltyRequest("커피", null, PenaltyTarget.ALL_LATE))).isNotEmpty();
-        assertThat(validator.validate(new PenaltyRequest("커피", LateThreshold.TEN, null))).isNotEmpty();
+        assertThat(validator.validate(new PenaltyRequest("커피", LateThreshold.TEN, null))).isEmpty();
         assertThat(validator.validate(new PenaltyRequest("커피", LateThreshold.TEN, PenaltyTarget.ALL_LATE))).isEmpty();
     }
 

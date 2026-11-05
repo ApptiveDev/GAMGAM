@@ -1,11 +1,18 @@
 package com.gamgam.backend.api.v1;
 
 import static com.gamgam.backend.appointment.AppointmentFixtures.both;
+import static org.assertj.core.api.Assertions.assertThat;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.*;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.*;
 
+import com.gamgam.backend.appointment.repository.AppointmentMemberRepository;
+
 import com.gamgam.backend.appointment.service.AppointmentService;
-import java.time.OffsetDateTime;
+import com.gamgam.backend.auth.security.JwtTokenProvider;
+import com.gamgam.backend.room.*;
+import com.gamgam.backend.user.entity.User;
+import com.gamgam.backend.user.repository.UserRepository;
+import java.util.UUID;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -14,51 +21,214 @@ import org.springframework.http.MediaType;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.setup.MockMvcBuilders;
 import org.springframework.web.context.WebApplicationContext;
+import org.springframework.transaction.annotation.Transactional;
 
 @SpringBootTest
+@Transactional
 class AppointmentRoomApiTests {
     @Autowired WebApplicationContext context;
     @Autowired AppointmentService service;
+    @Autowired JwtTokenProvider tokens;
+    @Autowired UserRepository users;
+    @Autowired RoomService rooms;
+    @Autowired RoomRepository roomRepository;
+    @Autowired RoomMemberRepository roomMembers;
+    @Autowired AppointmentMemberRepository members;
+
     private MockMvc mvc;
+    private String roomId;
+    private String id;
+
+    private String bearer(String userId) {
+        return "Bearer " + tokens.create(users.findById(userId).orElseThrow()).value();
+    }
 
     @BeforeEach
     void setUp() {
+        for (String userId : new String[]{"read-host", "read-member", "read-outsider"}) {
+            users.save(User.builder().id(userId).email(userId + "@appointment.test")
+                    .name(userId).passwordHash("unused").build());
+        }
+        roomId = rooms.create("read-host", new CreateRoomRequest("Read test room")).id();
+        roomMembers.save(new RoomMember(UUID.randomUUID().toString(),
+                roomRepository.findById(roomId).orElseThrow(), users.findById("read-member").orElseThrow()));
+        id = service.create(roomId, "read-host", both()).id();
         mvc = MockMvcBuilders.webAppContextSetup(context).build();
     }
 
-    private String validBody() {
-        return """
-                {"name":"방 안의 약속", "template":"ALL", "confirmedTime":"%s",
-                 "confirmedPlace":{"name":"서울숲"}}
-                """.formatted(OffsetDateTime.now().plusDays(3));
+    @Test
+    void roomMemberCanReadBeforeVotingWithoutBecomingParticipant() throws Exception {
+        mvc.perform(get("/api/v1/appointments/" + id).header("Authorization", bearer("read-member")))
+                .andExpect(status().isOk()).andExpect(jsonPath("$.data.id").value(id));
+        mvc.perform(get("/api/v1/rooms/" + roomId + "/appointments").header("Authorization", bearer("read-member")))
+                .andExpect(status().isOk()).andExpect(jsonPath("$.data.length()").value(1))
+                .andExpect(jsonPath("$.data[0].id").value(id));
+        mvc.perform(get("/api/v1/appointments/" + id + "/votes").header("Authorization", bearer("read-member")))
+                .andExpect(status().isOk()).andExpect(jsonPath("$.data.participating").value(false));
+        assertThat(members.existsByAppointmentIdAndUserId(id, "read-member")).isFalse();
+
     }
 
     @Test
-    void 방_안에서_생성하고_방별_목록을_조회한다() throws Exception {
-        mvc.perform(post("/api/v1/rooms/demo-room/appointments")
-                        .contentType(MediaType.APPLICATION_JSON).content(validBody()))
-                .andExpect(status().isCreated()).andExpect(jsonPath("$.data.roomId").value("demo-room"));
-        mvc.perform(get("/api/v1/rooms/demo-room/appointments"))
-                .andExpect(status().isOk()).andExpect(jsonPath("$.data[0].roomId").value("demo-room"));
+    void allAppointmentsIncludeOnlyJoinedRoomsEvenBeforeVoting() throws Exception {
+        String otherRoom = rooms.create("read-outsider", new CreateRoomRequest("Other room")).id();
+        var hidden = service.create(otherRoom, "read-outsider", both());
+        // Legacy appointment membership must not grant access to a different room.
+        service.join("read-member", hidden.inviteCode());
+        mvc.perform(get("/api/v1/appointments").header("Authorization", bearer("read-member")))
+                .andExpect(status().isOk()).andExpect(jsonPath("$.data.length()").value(1))
+                .andExpect(jsonPath("$.data[0].id").value(id));
+        mvc.perform(get("/api/v1/appointments/" + hidden.id()).header("Authorization", bearer("read-member")))
+                .andExpect(status().isForbidden()).andExpect(jsonPath("$.code").value("ROOM_ACCESS_DENIED"));
     }
 
     @Test
-    void 방_없는_생성과_전체_목록_경로는_제공하지_않는다() throws Exception {
-        mvc.perform(post("/api/v1/appointments").contentType(MediaType.APPLICATION_JSON).content(validBody()))
-                .andExpect(status().isNotFound()).andExpect(jsonPath("$.code").value("NOT_FOUND"));
-        mvc.perform(get("/api/v1/appointments"))
+    void outsiderCannotReadRoomOrAppointment() throws Exception {
+        for (String path : new String[]{"/api/v1/appointments/" + id,
+                "/api/v1/rooms/" + roomId + "/appointments", "/api/v1/appointments/" + id + "/votes"}) {
+            mvc.perform(get(path).header("Authorization", bearer("read-outsider")))
+                    .andExpect(status().isForbidden()).andExpect(jsonPath("$.code").value("ROOM_ACCESS_DENIED"));
+        }
+        mvc.perform(get("/api/v1/appointments").header("Authorization", bearer("read-outsider")))
+                .andExpect(status().isOk()).andExpect(jsonPath("$.data").isEmpty());
+    }
+
+    @Test
+    void readAccessDoesNotGrantMemberOrHostActions() throws Exception {
+        mvc.perform(delete("/api/v1/appointments/" + id + "/members/me")
+                        .header("Authorization", bearer("read-member")))
+                .andExpect(status().isForbidden()).andExpect(jsonPath("$.code").value("APPOINTMENT_ACCESS_DENIED"));
+        service.join("read-member", service.get("read-host", id).inviteCode());
+        mvc.perform(post("/api/v1/appointments/" + id + "/confirm")
+                        .header("Authorization", bearer("read-member"))
+                        .contentType(MediaType.APPLICATION_JSON).content("{\"timeOptionIndex\":0,\"placeOptionIndex\":0}"))
+                .andExpect(status().isForbidden()).andExpect(jsonPath("$.code").value("APPOINTMENT_HOST_ONLY"));
+    }
+
+    @Test
+    void missingAppointmentReturnsNotFound() throws Exception {
+        mvc.perform(get("/api/v1/appointments/missing").header("Authorization", bearer("read-member")))
+                .andExpect(status().isNotFound()).andExpect(jsonPath("$.code").value("APPOINTMENT_NOT_FOUND"));
+    }
+
+    @Test
+    void votingApiAndAppointmentResponsesShareVotesAndParticipation() throws Exception {
+        String base = "/api/v1/appointments/" + id;
+        String token = bearer("read-member");
+        mvc.perform(put(base + "/votes/time").header("Authorization", token)
+                        .contentType(MediaType.APPLICATION_JSON).content("{\"optionIndexes\":[0]}"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.timeOptions[0].voterIds[0]").value("read-member"));
+        mvc.perform(get(base + "/votes").header("Authorization", token))
+                .andExpect(status().isOk()).andExpect(jsonPath("$.data.timeOptions[0].voteCount").value(1))
+                .andExpect(jsonPath("$.data.participating").value(true));
+        mvc.perform(put(base + "/votes/place").header("Authorization", token)
+                        .contentType(MediaType.APPLICATION_JSON).content("{\"optionIndexes\":[1]}"))
+                .andExpect(status().isOk()).andExpect(jsonPath("$.data.placeOptions[1].voterIds[0]").value("read-member"));
+        mvc.perform(put(base + "/votes/time").header("Authorization", token)
+                        .contentType(MediaType.APPLICATION_JSON).content("{\"optionIndexes\":[]}"))
+                .andExpect(status().isOk()).andExpect(jsonPath("$.data.timeOptions[0].voteCount").value(0));
+        mvc.perform(put(base + "/votes/place").header("Authorization", token)
+                        .contentType(MediaType.APPLICATION_JSON).content("{\"optionIndexes\":[]}"))
+                .andExpect(status().isOk()).andExpect(jsonPath("$.data.participating").value(false));
+        mvc.perform(get(base).header("Authorization", token))
+                .andExpect(status().isOk()).andExpect(jsonPath("$.data.placeVotes").isEmpty());
+        assertThat(members.existsByAppointmentIdAndUserId(id, "read-member")).isFalse();
+        mvc.perform(put(base + "/votes/time").header("Authorization", token)
+                        .contentType(MediaType.APPLICATION_JSON).content("{\"optionIndexes\":[1]}"))
+                .andExpect(status().isOk());
+        mvc.perform(get("/api/v1/rooms/" + roomId + "/appointments").header("Authorization", token))
+                .andExpect(status().isOk()).andExpect(jsonPath("$.data[0].timeVotes['1'][0]").value("read-member"));
+        mvc.perform(get("/api/v1/appointments").header("Authorization", token))
+                .andExpect(status().isOk()).andExpect(jsonPath("$.data[0].timeVotes['1'][0]").value("read-member"));
+    }
+    @Test
+    void hostCanRenameAndReadUpdatedName() throws Exception {
+        var before = service.get("read-host", id);
+        mvc.perform(patch("/api/v1/appointments/" + id).header("Authorization", bearer("read-host"))
+                        .contentType(MediaType.APPLICATION_JSON).content("{\"name\":\"  Updated meeting  \"}"))
+                .andExpect(status().isOk()).andExpect(jsonPath("$.data.name").value("Updated meeting"));
+        mvc.perform(get("/api/v1/appointments/" + id).header("Authorization", bearer("read-member")))
+                .andExpect(status().isOk()).andExpect(jsonPath("$.data.name").value("Updated meeting"));
+        mvc.perform(get("/api/v1/rooms/" + roomId + "/appointments").header("Authorization", bearer("read-member")))
+                .andExpect(status().isOk()).andExpect(jsonPath("$.data[0].name").value("Updated meeting"));
+        var after = service.get("read-host", id);
+        assertThat(after.status()).isEqualTo(before.status());
+        assertThat(after.hostId()).isEqualTo(before.hostId());
+        assertThat(after.candidatesTime()).isEqualTo(before.candidatesTime());
+        assertThat(after.members()).isEqualTo(before.members());
+    }
+
+    @Test
+    void renameValidatesNameAndAcceptsFiftyCharacters() throws Exception {
+        String original = service.get("read-host", id).name();
+        for (String body : new String[]{"{}", "{\"name\":null}", "{\"name\":\"   \"}",
+                "{\"name\":\"" + "a".repeat(51) + "\"}"}) {
+            mvc.perform(patch("/api/v1/appointments/" + id).header("Authorization", bearer("read-host"))
+                            .contentType(MediaType.APPLICATION_JSON).content(body))
+                    .andExpect(status().isBadRequest());
+        }
+        assertThat(service.get("read-host", id).name()).isEqualTo(original);
+        mvc.perform(patch("/api/v1/appointments/" + id).header("Authorization", bearer("read-host"))
+                        .contentType(MediaType.APPLICATION_JSON).content("{\"name\":\"  " + "a".repeat(50) + "  \"}"))
+                .andExpect(status().isOk()).andExpect(jsonPath("$.data.name").value("a".repeat(50)));
+    }
+
+    @Test
+    void renameRequiresHostAndAuthentication() throws Exception {
+        String original = service.get("read-host", id).name();
+        service.join("read-member", service.get("read-host", id).inviteCode());
+        for (String userId : new String[]{"read-member", "read-outsider"}) {
+            mvc.perform(patch("/api/v1/appointments/" + id).header("Authorization", bearer(userId))
+                            .contentType(MediaType.APPLICATION_JSON).content("{\"name\":\"Forbidden\"}"))
+                    .andExpect(status().isForbidden());
+        }
+        mvc.perform(patch("/api/v1/appointments/" + id)
+                        .contentType(MediaType.APPLICATION_JSON).content("{\"name\":\"Forbidden\"}"))
+                .andExpect(status().isUnauthorized());
+        mvc.perform(patch("/api/v1/appointments/missing").header("Authorization", bearer("read-host"))
+                        .contentType(MediaType.APPLICATION_JSON).content("{\"name\":\"Missing\"}"))
                 .andExpect(status().isNotFound());
+        assertThat(service.get("read-host", id).name()).isEqualTo(original);
+    }
+    @Test
+    void readsRequireAuthentication() throws Exception {
+        for (String path : new String[]{"/api/v1/appointments", "/api/v1/appointments/" + id,
+                "/api/v1/rooms/" + roomId + "/appointments"}) {
+            mvc.perform(get(path)).andExpect(status().isUnauthorized());
+        }
     }
 
     @Test
-    void 비멤버는_생성_목록_상세를_조회할_수_없다() throws Exception {
-        var id = service.create("demo-room", "u-yeeun", both()).id();
-        mvc.perform(post("/api/v1/rooms/demo-room/appointments").header("X-User-Id", "outsider")
-                        .contentType(MediaType.APPLICATION_JSON).content(validBody()))
-                .andExpect(status().isForbidden());
-        mvc.perform(get("/api/v1/rooms/demo-room/appointments").header("X-User-Id", "outsider"))
-                .andExpect(status().isForbidden());
-        mvc.perform(get("/api/v1/appointments/" + id).header("X-User-Id", "outsider"))
-                .andExpect(status().isForbidden());
+    void penaltyTargetDefaultsOnCreateAndUpdateAndPreservesExplicitChoice() throws Exception {
+        for (String targetField : new String[]{"", ",\"target\":null",
+                ",\"target\":\"ALL_LATE\"", ",\"target\":\"LATEST_ONLY\""}) {
+            String penalty = "{\"description\":\"Coffee\",\"lateThresholdMin\":\"TEN\"" + targetField + "}";
+            String expected = targetField.contains("LATEST_ONLY") ? "LATEST_ONLY" : "ALL_LATE";
+            mvc.perform(post("/api/v1/rooms/" + roomId + "/appointments")
+                            .header("Authorization", bearer("read-host"))
+                            .contentType(MediaType.APPLICATION_JSON)
+                            .content("{\"name\":\"Penalty test\",\"penalty\":" + penalty + "}"))
+                    .andExpect(status().isCreated())
+                    .andExpect(jsonPath("$.data.penalty.target").value(expected));
+            mvc.perform(put("/api/v1/appointments/" + id + "/penalty")
+                            .header("Authorization", bearer("read-host"))
+                            .contentType(MediaType.APPLICATION_JSON).content(penalty))
+                    .andExpect(status().isOk())
+                    .andExpect(jsonPath("$.data.penalty.target").value(expected));
+            mvc.perform(get("/api/v1/appointments/" + id)
+                            .header("Authorization", bearer("read-host")))
+                    .andExpect(status().isOk())
+                    .andExpect(jsonPath("$.data.penalty.target").value(expected));
+        }
+    }
+
+    @Test
+    void creatingWithoutPenaltyKeepsPenaltyAbsent() throws Exception {
+        mvc.perform(post("/api/v1/rooms/" + roomId + "/appointments")
+                        .header("Authorization", bearer("read-host"))
+                        .contentType(MediaType.APPLICATION_JSON).content("{\"name\":\"No penalty\"}"))
+                .andExpect(status().isCreated())
+                .andExpect(jsonPath("$.data.penalty").doesNotExist());
     }
 }

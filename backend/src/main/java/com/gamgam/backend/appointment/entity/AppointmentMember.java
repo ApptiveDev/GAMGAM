@@ -43,6 +43,13 @@ public class AppointmentMember {
     @Column(nullable = false, length = 10)
     private AppointmentMemberRole role;
 
+    @Column(nullable = false, columnDefinition = "boolean default false")
+    private boolean regardlessOfTimeAndPlace;
+
+    public void setRegardlessOfTimeAndPlace(boolean selected) {
+        this.regardlessOfTimeAndPlace = selected;
+    }
+
     @CreatedDate
     @Column(nullable = false, updatable = false)
     private Instant joinedAt;

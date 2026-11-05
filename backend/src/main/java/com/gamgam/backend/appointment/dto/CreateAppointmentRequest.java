@@ -33,13 +33,7 @@ public record CreateAppointmentRequest(
         @Valid LocationSharingRequest locationSharing
 ) {
     /**
-     * template과 confirmedTime의 관계를 검사한다.
-     * - 시간을 조율해야 하는 template(TIME_ONLY, BOTH)이면 confirmedTime은 아직 없어야 정상
-     *   (나중에 candidatesTime 중 하나로 확정될 값이라서, 지금 미리 넣으면 모순)
-     * - 시간이 이미 정해진 template(ALL, PLACE_ONLY)이면 confirmedTime이 반드시 있어야 정상
-     *
-     * template이 null인 경우는 @NotNull이 이미 실패 처리하므로,
-     * 여기서는 판단할 근거가 없다고 보고 true(통과)를 반환해 에러 메시지 중복을 막는다.
+     * 확정 시간은 시간 조율 템플릿(TIME_ONLY, BOTH)이면 생략하고, 그 외에는 필수다. template을 생략하면 확정 시간도 생략해야 한다.
      */
     @AssertTrue(message = "confirmedTime is required unless the template coordinates time")
     public boolean isConfirmedTimeConsistent() {
@@ -53,12 +47,7 @@ public record CreateAppointmentRequest(
     }
 
     /**
-     * template과 candidatesTime(시간 후보 목록)의 관계를 검사한다.
-     * - 시간을 조율해야 하는 template이면 후보가 2개 이상 있어야 투표/선택이 의미 있음
-     * - 그렇지 않으면 후보 목록 자체가 비어 있어야 함 (이미 confirmedTime으로 정했으니까)
-     *
-     * 실제 "몇 개 이상이어야 하는지/비어야 하는지" 판단은 공통 로직이라
-     * isCandidateListConsistent()로 뽑아뒀다. (candidatesPlace 검사와 로직이 완전히 동일)
+     * 시간 조율 템플릿이면 시간 후보가 2개 이상 필요하다. template을 생략하거나 시간을 조율하지 않으면 후보는 null 또는 빈 목록이어야 한다.
      */
     @AssertTrue(message = "candidatesTime must have at least 2 options when coordinating time, and must be empty otherwise")
     public boolean isCandidatesTimeConsistent() {
@@ -69,9 +58,7 @@ public record CreateAppointmentRequest(
     }
 
     /**
-     * template과 confirmedPlace의 관계를 검사한다.
-     * - 장소를 조율해야 하는 template(PLACE_ONLY, BOTH)이면 confirmedPlace는 없어야 정상
-     * - 장소가 이미 정해진 template(ALL, TIME_ONLY)이면 confirmedPlace가 있어야 정상
+     * 확정 장소는 장소 조율 템플릿(PLACE_ONLY, BOTH)이면 생략하고, 그 외에는 필수다. template을 생략하면 확정 장소도 생략해야 한다.
      */
     @AssertTrue(message = "confirmedPlace is required unless the template coordinates place")
     public boolean isConfirmedPlaceConsistent() {
@@ -85,8 +72,7 @@ public record CreateAppointmentRequest(
     }
 
     /**
-     * template과 candidatesPlace(장소 후보 목록)의 관계를 검사한다.
-     * isCandidatesTimeConsistent()와 대칭 — 시간이 장소로 바뀐 버전.
+     * 장소 조율 템플릿이면 장소 후보가 2개 이상 필요하다. template을 생략하거나 장소를 조율하지 않으면 후보는 null 또는 빈 목록이어야 한다.
      */
     @AssertTrue(message = "candidatesPlace must have at least 2 options when coordinating place, and must be empty otherwise")
     public boolean isCandidatesPlaceConsistent() {
@@ -134,6 +120,12 @@ public record CreateAppointmentRequest(
             @NotBlank @Size(max = 100) String description,
             @NotNull LateThreshold lateThresholdMin,
             @NotNull PenaltyTarget target) {
+        public PenaltyRequest {
+            if (target == null) {
+                target = PenaltyTarget.ALL_LATE;
+            }
+        }
+
         public PenaltyRule toDomain() {
             return new PenaltyRule(description, lateThresholdMin, target);
         }

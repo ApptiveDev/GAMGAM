@@ -4,8 +4,12 @@ import com.gamgam.backend.appointment.dto.AppointmentVotingResponse;
 import com.gamgam.backend.appointment.dto.TimeCandidateRequest;
 import com.gamgam.backend.appointment.dto.CreateAppointmentRequest.PlaceRequest;
 import com.gamgam.backend.appointment.entity.Appointment;
-import com.gamgam.backend.appointment.entity.AppointmentParticipant;
-import com.gamgam.backend.appointment.repository.AppointmentParticipantRepository;
+import com.gamgam.backend.appointment.entity.AppointmentMember;
+import com.gamgam.backend.appointment.repository.AppointmentMemberRepository;
+import com.gamgam.backend.appointment.vo.AppointmentMemberRole;
+import com.gamgam.backend.user.repository.UserRepository;
+import java.util.UUID;
+import java.util.stream.Collectors;
 import com.gamgam.backend.appointment.repository.AppointmentRepository;
 import com.gamgam.backend.appointment.vo.AppointmentStatus;
 import com.gamgam.backend.appointment.vo.Place;
@@ -33,8 +37,10 @@ import org.springframework.transaction.annotation.Transactional;
 public class AppointmentVotingService {
     private final AppointmentRepository appointments;
     private final AppointmentVoteRepository votes;
-    private final AppointmentParticipantRepository participants;
+    private final AppointmentMemberRepository members;
+    private final UserRepository users;
     private final RoomAccess rooms;
+    private final AppointmentParticipationService participation;
 
     public AppointmentVotingResponse get(String id, String userId) {
         return response(load(id, userId, false), userId);
@@ -54,7 +60,8 @@ public class AppointmentVotingService {
         Appointment appointment = load(id, userId, true);
         requireCoordinating(appointment);
         boolean allowed = type == VoteType.TIME
-                ? appointment.getTemplate().coordinatesTime() : appointment.getTemplate().coordinatesPlace();
+                ? appointment.getTemplate().coordinatesTime() && appointment.getConfirmedTime() == null
+                : appointment.getTemplate().coordinatesPlace() && appointment.getConfirmedPlace() == null;
         if (!allowed) throw new BusinessException(ErrorCode.VOTE_NOT_ALLOWED);
         int size = type == VoteType.TIME ? appointment.getCandidatesTime().size() : appointment.getCandidatesPlace().size();
         if (indexes == null || indexes.stream().anyMatch(i -> i == null || i < 0 || i >= size)) {
@@ -72,6 +79,10 @@ public class AppointmentVotingService {
     public AppointmentVotingResponse participateRegardless(String id, String userId, boolean selected) {
         Appointment appointment = load(id, userId, true);
         requireCoordinating(appointment);
+        if (appointment.getTemplate().coordinatesTime() && appointment.getConfirmedTime() != null
+                || appointment.getTemplate().coordinatesPlace() && appointment.getConfirmedPlace() != null) {
+            throw new BusinessException(ErrorCode.VOTE_NOT_ALLOWED);
+        }
         if (selected) {
             // 특정 후보 선택과 배타적이다. 전환과 참여자 갱신을 하나의 트랜잭션에서 처리한다.
             votes.deleteSelection(id, userId, VoteType.TIME);
@@ -82,14 +93,17 @@ public class AppointmentVotingService {
     }
 
     private void synchronizeParticipation(Appointment appointment, String userId, Boolean regardless) {
-        var participant = participants.findByAppointmentIdAndUserId(appointment.getId(), userId)
-                .orElseGet(() -> new AppointmentParticipant(appointment, userId));
+        var existing = members.findByAppointmentIdAndUserId(appointment.getId(), userId);
+        var participant = existing.orElseGet(() -> new AppointmentMember(UUID.randomUUID().toString(),
+                appointment, users.findById(userId)
+                        .orElseThrow(() -> new BusinessException(ErrorCode.USER_NOT_FOUND)),
+                AppointmentMemberRole.MEMBER));
         if (regardless != null) participant.setRegardlessOfTimeAndPlace(regardless);
         if (participant.isRegardlessOfTimeAndPlace()
                 || votes.existsByAppointmentIdAndUserId(appointment.getId(), userId)) {
-            if (participant.getId() == null) participants.save(participant);
-        } else if (participant.getId() != null) {
-            participants.delete(participant);
+            if (existing.isEmpty()) members.save(participant);
+        } else if (existing.isPresent() && participant.getRole() != AppointmentMemberRole.HOST) {
+            participation.remove(participant);
         }
     }
 
@@ -97,7 +111,7 @@ public class AppointmentVotingService {
     public AppointmentVotingResponse addTimeCandidate(String id, String userId, TimeCandidateRequest request) {
         Appointment appointment = load(id, userId, true);
         requireCoordinating(appointment);
-        if (!appointment.getTemplate().coordinatesTime()) {
+        if (!appointment.getTemplate().coordinatesTime() || appointment.getConfirmedTime() != null) {
             throw new BusinessException(ErrorCode.VOTE_NOT_ALLOWED);
         }
         if (request.time() == null || !request.time().isAfter(OffsetDateTime.now())) {
@@ -121,7 +135,7 @@ public class AppointmentVotingService {
     public AppointmentVotingResponse addPlaceCandidate(String id, String userId, PlaceRequest request) {
         Appointment appointment = load(id, userId, true);
         requireCoordinating(appointment);
-        if (!appointment.getTemplate().coordinatesPlace()) {
+        if (!appointment.getTemplate().coordinatesPlace() || appointment.getConfirmedPlace() != null) {
             throw new BusinessException(ErrorCode.VOTE_NOT_ALLOWED);
         }
         String name = request.name().strip();
@@ -150,10 +164,13 @@ public class AppointmentVotingService {
 
     private AppointmentVotingResponse response(Appointment appointment, String userId) {
         List<AppointmentVote> allVotes = votes.findByAppointmentIdOrderByIdAsc(appointment.getId());
-        var members = participants.findByAppointmentIdOrderByJoinedAtAscIdAsc(appointment.getId());
-        var participantIds = members.stream().map(AppointmentParticipant::getUserId).toList();
-        var regardlessIds = members.stream().filter(AppointmentParticipant::isRegardlessOfTimeAndPlace)
-                .map(AppointmentParticipant::getUserId).toList();
+        var votingUserIds = allVotes.stream().map(AppointmentVote::getUserId).collect(Collectors.toSet());
+        var participatingMembers = members.findAllByAppointmentIdOrderByJoinedAtAsc(appointment.getId()).stream()
+                .filter(member -> member.isRegardlessOfTimeAndPlace() || votingUserIds.contains(member.getUser().getId()))
+                .toList();
+        var participantIds = participatingMembers.stream().map(member -> member.getUser().getId()).toList();
+        var regardlessIds = participatingMembers.stream().filter(AppointmentMember::isRegardlessOfTimeAndPlace)
+                .map(member -> member.getUser().getId()).toList();
         var times = IntStream.range(0, appointment.getCandidatesTime().size()).mapToObj(index -> {
             var voterIds = voterIds(allVotes, VoteType.TIME, index);
             return new AppointmentVotingResponse.TimeOption(index,

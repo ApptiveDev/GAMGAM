@@ -5,15 +5,16 @@ import static com.gamgam.backend.appointment.AppointmentFixtures.both;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
 import com.gamgam.backend.appointment.entity.Appointment;
 import com.gamgam.backend.appointment.entity.AppointmentMember;
 import com.gamgam.backend.appointment.repository.AppointmentMemberRepository;
-import com.gamgam.backend.appointment.repository.AppointmentPlaceVoteRepository;
+import com.gamgam.backend.appointment.repository.AppointmentVoteRepository;
 import com.gamgam.backend.appointment.repository.AppointmentRepository;
-import com.gamgam.backend.appointment.repository.AppointmentTimeVoteRepository;
+
 import com.gamgam.backend.appointment.repository.PenaltyAgreementRepository;
 import com.gamgam.backend.appointment.vo.AppointmentMemberRole;
 import com.gamgam.backend.appointment.vo.AppointmentStatus;
@@ -34,25 +35,26 @@ class AppointmentServiceTests {
     private UserRepository users;
     private AppointmentService service;
     private User user;
+    private RoomAccess rooms;
 
     @BeforeEach
     void setUp() {
         appointments = mock(AppointmentRepository.class);
         members = mock(AppointmentMemberRepository.class);
-        var timeVotes = mock(AppointmentTimeVoteRepository.class);
-        var placeVotes = mock(AppointmentPlaceVoteRepository.class);
+        var votes = mock(AppointmentVoteRepository.class);
+
         var agreements = mock(PenaltyAgreementRepository.class);
         users = mock(UserRepository.class);
-        RoomAccess rooms = mock(RoomAccess.class);
-        service = new AppointmentService(appointments, members, timeVotes, placeVotes, agreements, users,
-                new ShareLinkGenerator(new ShareProperties("http://localhost:3000")), rooms);
+        rooms = mock(RoomAccess.class);
+        service = new AppointmentService(appointments, members, votes, agreements, users,
+                new ShareLinkGenerator(new ShareProperties("http://localhost:3000")), rooms, mock(AppointmentParticipationService.class));
         user = User.builder().id("user-1").email("user@example.com").name("User").passwordHash("hash").build();
         when(users.findById("user-1")).thenReturn(Optional.of(user));
         when(appointments.save(any(Appointment.class))).thenAnswer(invocation -> invocation.getArgument(0));
         when(members.save(any(AppointmentMember.class))).thenAnswer(invocation -> invocation.getArgument(0));
         when(members.findAllByAppointmentIdOrderByJoinedAtAsc(any())).thenReturn(List.of());
-        when(timeVotes.findAllByAppointmentId(any())).thenReturn(List.of());
-        when(placeVotes.findAllByAppointmentId(any())).thenReturn(List.of());
+        when(votes.findByAppointmentIdOrderByIdAsc(any())).thenReturn(List.of());
+
         when(agreements.findAllByAppointmentId(any())).thenReturn(List.of());
     }
 
@@ -77,11 +79,12 @@ class AppointmentServiceTests {
                 .hostId("host").inviteCode("ABCDEFGH").template(com.gamgam.backend.appointment.vo.AppointmentTemplate.ALL)
                 .status(AppointmentStatus.CONFIRMED).build();
         when(appointments.findById("a-1")).thenReturn(Optional.of(appointment));
-        when(members.existsByAppointmentIdAndUserId("a-1", "user-1")).thenReturn(false);
+        doThrow(new BusinessException(ErrorCode.ROOM_ACCESS_DENIED))
+                .when(rooms).requireMember("demo-room", "user-1");
 
         assertThatThrownBy(() -> service.get("user-1", "a-1"))
                 .isInstanceOfSatisfying(BusinessException.class,
-                        error -> assertThat(error.errorCode()).isEqualTo(ErrorCode.APPOINTMENT_ACCESS_DENIED));
+                        error -> assertThat(error.errorCode()).isEqualTo(ErrorCode.ROOM_ACCESS_DENIED));
     }
 
     @Test
@@ -90,6 +93,7 @@ class AppointmentServiceTests {
                 .hostId("host").inviteCode("ABCDEFGH").template(com.gamgam.backend.appointment.vo.AppointmentTemplate.ALL)
                 .status(AppointmentStatus.CONFIRMED).build();
         when(appointments.findByInviteCode("ABCDEFGH")).thenReturn(Optional.of(appointment));
+        when(appointments.findByIdForUpdate("a-1")).thenReturn(Optional.of(appointment));
         when(members.existsByAppointmentIdAndUserId("a-1", "user-1")).thenReturn(true);
 
         assertThatThrownBy(() -> service.join("user-1", "abcdefgh"))
