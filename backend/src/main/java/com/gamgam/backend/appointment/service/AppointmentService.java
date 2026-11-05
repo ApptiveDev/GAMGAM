@@ -233,10 +233,6 @@ public class AppointmentService {
         return toResponse(appointment);
     }
 
-    public boolean isMember(String appointmentId, String userId) {
-        return memberRepository.existsByAppointmentIdAndUserId(appointmentId, userId);
-    }
-
     private void removeMemberData(String appointmentId, String userId) {
         AppointmentMember member = memberRepository.findByAppointmentIdAndUserId(appointmentId, userId)
                 .orElseThrow(() -> new BusinessException(ErrorCode.MEMBER_NOT_FOUND));

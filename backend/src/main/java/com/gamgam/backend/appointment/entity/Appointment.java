@@ -78,12 +78,6 @@ public class Appointment {
         this.status = status;
     }
 
-    public void confirm(Integer timeOptionIndex, Integer placeOptionIndex) {
-        if (template.coordinatesTime()) confirmedTime = candidatesTime.get(timeOptionIndex);
-        if (template.coordinatesPlace()) confirmedPlace = candidatesPlace.get(placeOptionIndex);
-        status = AppointmentStatus.CONFIRMED;
-    }
-
     public void rename(String name) { this.name = name; }
 
     public void confirmTime(int index) {
