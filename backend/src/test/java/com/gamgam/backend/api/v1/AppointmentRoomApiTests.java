@@ -242,17 +242,28 @@ class AppointmentRoomApiTests {
                             .contentType(MediaType.APPLICATION_JSON)
                             .content("{\"name\":\"Penalty test\",\"penalty\":" + penalty + "}"))
                     .andExpect(status().isCreated())
-                    .andExpect(jsonPath("$.data.penalty.target").value(expected));
+                    .andExpect(jsonPath("$.data.penalty.target").value(expected))
+                    .andExpect(jsonPath("$.data.penaltyAgreedUserIds").doesNotHaveJsonPath());
             mvc.perform(put("/api/v1/appointments/" + id + "/penalty")
                             .header("Authorization", bearer("read-host"))
                             .contentType(MediaType.APPLICATION_JSON).content(penalty))
                     .andExpect(status().isOk())
-                    .andExpect(jsonPath("$.data.penalty.target").value(expected));
+                    .andExpect(jsonPath("$.data.penalty.target").value(expected))
+                    .andExpect(jsonPath("$.data.penaltyAgreedUserIds").doesNotHaveJsonPath());
             mvc.perform(get("/api/v1/appointments/" + id)
                             .header("Authorization", bearer("read-host")))
                     .andExpect(status().isOk())
-                    .andExpect(jsonPath("$.data.penalty.target").value(expected));
+                    .andExpect(jsonPath("$.data.penalty.target").value(expected))
+                    .andExpect(jsonPath("$.data.penaltyAgreedUserIds").doesNotHaveJsonPath());
         }
+    }
+
+    @Test
+    void penaltyAgreementEndpointIsRemoved() throws Exception {
+        service.setPenalty("read-host", id, com.gamgam.backend.appointment.AppointmentFixtures.penalty());
+        mvc.perform(post("/api/v1/appointments/" + id + "/penalty/agreement")
+                        .header("Authorization", bearer("read-host")))
+                .andExpect(status().isNotFound());
     }
 
     @Test

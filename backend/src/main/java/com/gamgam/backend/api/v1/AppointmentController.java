@@ -117,13 +117,6 @@ public class AppointmentController {
         return ApiResponse.ok(service.setPenalty(userId, id, request));
     }
 
-    @PostMapping("/appointments/{id}/penalty/agreement")
-    public ApiResponse<AppointmentResponse> togglePenaltyAgreement(
-            @RequestAttribute(AuthInterceptor.USER_ID_ATTRIBUTE) String userId,
-            @PathVariable String id) {
-        return ApiResponse.ok(service.togglePenaltyAgreement(userId, id));
-    }
-
     @PostMapping("/appointments/{id}/complete")
     public ApiResponse<AppointmentResponse> complete(
             @RequestAttribute(AuthInterceptor.USER_ID_ATTRIBUTE) String userId,

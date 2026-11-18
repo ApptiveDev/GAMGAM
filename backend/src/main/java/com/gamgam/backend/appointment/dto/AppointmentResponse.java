@@ -33,8 +33,7 @@ public record AppointmentResponse(
         String inviteCode,
         List<AppointmentMemberResponse> members,
         Map<Integer, List<String>> timeVotes,
-        Map<Integer, List<String>> placeVotes,
-        List<String> penaltyAgreedUserIds
+        Map<Integer, List<String>> placeVotes
 ) {
     public AppointmentResponse(String id, String name, AppointmentTemplate template,
                                List<OffsetDateTime> candidatesTime, OffsetDateTime confirmedTime,
@@ -43,7 +42,7 @@ public record AppointmentResponse(
                                AppointmentStatus status, String shareUrl, Instant createdAt) {
         this(id, null, name, template, candidatesTime, confirmedTime, candidatesPlace, confirmedPlace,
                 penalty, reward, locationSharing, status, shareUrl, createdAt,
-                null, null, List.of(), Map.of(), Map.of(), List.of());
+                null, null, List.of(), Map.of(), Map.of());
     }
 
     public static AppointmentResponse of(Appointment appointment, String shareUrl) {
@@ -63,18 +62,17 @@ public record AppointmentResponse(
                 appointment.getStatus(),
                 shareUrl,
                 appointment.getCreatedAt(), appointment.getHostId(), appointment.getInviteCode(),
-                List.of(), Map.of(), Map.of(), List.of());
+                List.of(), Map.of(), Map.of());
     }
 
     public static AppointmentResponse of(Appointment appointment, String shareUrl,
                                          List<AppointmentMemberResponse> members,
                                          Map<Integer, List<String>> timeVotes,
-                                         Map<Integer, List<String>> placeVotes,
-                                         List<String> penaltyAgreedUserIds) {
+                                         Map<Integer, List<String>> placeVotes) {
         AppointmentResponse base = of(appointment, shareUrl);
         return new AppointmentResponse(base.id, base.roomId, base.name, base.template, base.candidatesTime,
                 base.confirmedTime, base.candidatesPlace, base.confirmedPlace, base.penalty, base.reward,
                 base.locationSharing, base.status, base.shareUrl, base.createdAt,
-                base.hostId, base.inviteCode, members, timeVotes, placeVotes, penaltyAgreedUserIds);
+                base.hostId, base.inviteCode, members, timeVotes, placeVotes);
     }
 }

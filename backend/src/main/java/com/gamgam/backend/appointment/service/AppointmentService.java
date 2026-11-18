@@ -11,8 +11,6 @@ import com.gamgam.backend.appointment.repository.AppointmentMemberRepository;
 import com.gamgam.backend.appointment.repository.AppointmentVoteRepository;
 import com.gamgam.backend.appointment.repository.AppointmentRepository;
 
-import com.gamgam.backend.appointment.repository.PenaltyAgreementRepository;
-import com.gamgam.backend.appointment.entity.PenaltyAgreement;
 import com.gamgam.backend.appointment.vo.AppointmentMemberRole;
 import com.gamgam.backend.appointment.vo.AppointmentStatus;
 import com.gamgam.backend.appointment.vo.AppointmentTemplate;
@@ -45,7 +43,6 @@ public class AppointmentService {
     private final AppointmentMemberRepository memberRepository;
     private final AppointmentVoteRepository voteRepository;
 
-    private final PenaltyAgreementRepository penaltyAgreementRepository;
     private final UserRepository userRepository;
     private final ShareLinkGenerator shareLinkGenerator;
     private final RoomAccess rooms;
@@ -170,21 +167,6 @@ public class AppointmentService {
         Appointment appointment = findAccessible(userId, appointmentId);
         requireHost(appointment, userId);
         appointment.updatePenalty(request.toDomain());
-        if (penaltyAgreementRepository.findByAppointmentIdAndUserId(appointmentId, userId).isEmpty()) {
-            penaltyAgreementRepository.save(new PenaltyAgreement(appointmentId, userId));
-        }
-        return toResponse(appointment);
-    }
-
-    @Transactional
-    public AppointmentResponse togglePenaltyAgreement(String userId, String appointmentId) {
-        Appointment appointment = findAccessible(userId, appointmentId);
-        if (appointment.getPenalty() == null) {
-            throw new BusinessException(ErrorCode.BAD_REQUEST);
-        }
-        penaltyAgreementRepository.findByAppointmentIdAndUserId(appointmentId, userId)
-                .ifPresentOrElse(penaltyAgreementRepository::delete,
-                        () -> penaltyAgreementRepository.save(new PenaltyAgreement(appointmentId, userId)));
         return toResponse(appointment);
     }
 
@@ -269,10 +251,8 @@ public class AppointmentService {
         Map<Integer, List<String>> placeVotes = new LinkedHashMap<>();
         allVotes.stream().filter(vote -> vote.getType() == VoteType.PLACE).forEach(vote ->
                 placeVotes.computeIfAbsent(vote.getOptionIndex(), ignored -> new ArrayList<>()).add(vote.getUserId()));
-        List<String> agreements = penaltyAgreementRepository.findAllByAppointmentId(appointment.getId()).stream()
-                .map(PenaltyAgreement::getUserId).toList();
         return AppointmentResponse.of(appointment, shareLinkGenerator.create(appointment.getInviteCode()),
-                members, timeVotes, placeVotes, agreements);
+                members, timeVotes, placeVotes);
     }
 
     private static List<Place> toDomainPlaces(List<CreateAppointmentRequest.PlaceRequest> requests) {

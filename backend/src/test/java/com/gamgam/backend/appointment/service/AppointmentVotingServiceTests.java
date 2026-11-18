@@ -50,7 +50,6 @@ class AppointmentVotingServiceTests {
     @Autowired RoomService rooms;
     @Autowired RoomRepository roomRepository;
     @Autowired RoomMemberRepository roomMembers;
-    @Autowired com.gamgam.backend.appointment.repository.PenaltyAgreementRepository agreements;
     private String roomId;
     private String id;
 
@@ -345,7 +344,6 @@ class AppointmentVotingServiceTests {
             String appointmentId = appointments.create(roomId, USER, both()).id();
             service.voteTime(appointmentId, USER, Set.of(0));
             service.voteTime(appointmentId, OTHER, Set.of(1));
-            agreements.save(new com.gamgam.backend.appointment.entity.PenaltyAgreement(appointmentId, OTHER));
             if (exit == 0) {
                 appointments.leave(OTHER, appointmentId);
             } else if (exit == 1) {
@@ -358,7 +356,6 @@ class AppointmentVotingServiceTests {
             }
             assertThat(members.existsByAppointmentIdAndUserId(appointmentId, OTHER)).isFalse();
             assertThat(votes.existsByAppointmentIdAndUserId(appointmentId, OTHER)).isFalse();
-            assertThat(agreements.findByAppointmentIdAndUserId(appointmentId, OTHER)).isEmpty();
             assertThat(service.get(appointmentId, USER).participantIds()).containsExactly(USER);
         }
     }

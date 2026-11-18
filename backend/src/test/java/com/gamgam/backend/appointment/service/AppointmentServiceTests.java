@@ -15,7 +15,6 @@ import com.gamgam.backend.appointment.repository.AppointmentMemberRepository;
 import com.gamgam.backend.appointment.repository.AppointmentVoteRepository;
 import com.gamgam.backend.appointment.repository.AppointmentRepository;
 
-import com.gamgam.backend.appointment.repository.PenaltyAgreementRepository;
 import com.gamgam.backend.appointment.vo.AppointmentMemberRole;
 import com.gamgam.backend.appointment.vo.AppointmentStatus;
 import com.gamgam.backend.global.config.ShareProperties;
@@ -43,10 +42,9 @@ class AppointmentServiceTests {
         members = mock(AppointmentMemberRepository.class);
         var votes = mock(AppointmentVoteRepository.class);
 
-        var agreements = mock(PenaltyAgreementRepository.class);
         users = mock(UserRepository.class);
         rooms = mock(RoomAccess.class);
-        service = new AppointmentService(appointments, members, votes, agreements, users,
+        service = new AppointmentService(appointments, members, votes, users,
                 new ShareLinkGenerator(new ShareProperties("http://localhost:3000")), rooms, mock(AppointmentParticipationService.class));
         user = User.builder().id("user-1").email("user@example.com").name("User").passwordHash("hash").build();
         when(users.findById("user-1")).thenReturn(Optional.of(user));
@@ -55,7 +53,6 @@ class AppointmentServiceTests {
         when(members.findAllByAppointmentIdOrderByJoinedAtAsc(any())).thenReturn(List.of());
         when(votes.findByAppointmentIdOrderByIdAsc(any())).thenReturn(List.of());
 
-        when(agreements.findAllByAppointmentId(any())).thenReturn(List.of());
     }
 
     @Test
