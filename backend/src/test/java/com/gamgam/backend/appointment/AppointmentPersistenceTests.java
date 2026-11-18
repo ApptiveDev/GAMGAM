@@ -5,7 +5,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import com.gamgam.backend.appointment.repository.AppointmentRepository;
-import com.gamgam.backend.appointment.dto.ConfirmAppointmentRequest;
+import com.gamgam.backend.appointment.vo.VoteType;
 import com.gamgam.backend.appointment.service.AppointmentService;
 import com.gamgam.backend.appointment.vo.AppointmentStatus;
 import com.gamgam.backend.auth.dto.SignupRequest;
@@ -112,12 +112,18 @@ class AppointmentPersistenceTests {
         var placeVoted = service.get(guestId, created.id());
         assertThat(placeVoted.placeVotes().get(1)).contains(guestId);
 
-        assertThatThrownBy(() -> service.confirm(
-                guestId, created.id(), new ConfirmAppointmentRequest(0, 1)))
+        assertThatThrownBy(() -> service.confirmOption(guestId, created.id(), VoteType.TIME, 0))
                 .isInstanceOfSatisfying(BusinessException.class,
                         error -> assertThat(error.errorCode()).isEqualTo(ErrorCode.APPOINTMENT_HOST_ONLY));
 
-        var confirmed = service.confirm(userId, created.id(), new ConfirmAppointmentRequest(0, 1));
+        service.confirmOption(userId, created.id(), VoteType.TIME, 0);
+        var partial = service.get(userId, created.id());
+        assertThat(partial.status()).isEqualTo(AppointmentStatus.COORDINATING);
+        assertThat(partial.confirmedTime()).isNotNull();
+        assertThat(partial.confirmedPlace()).isNull();
+
+        service.confirmOption(userId, created.id(), VoteType.PLACE, 1);
+        var confirmed = service.get(userId, created.id());
         assertThat(confirmed.status()).isEqualTo(AppointmentStatus.CONFIRMED);
         assertThat(confirmed.confirmedTime()).isNotNull();
         assertThat(confirmed.confirmedPlace()).isNotNull();

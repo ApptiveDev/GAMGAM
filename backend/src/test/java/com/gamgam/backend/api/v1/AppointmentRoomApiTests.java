@@ -99,10 +99,42 @@ class AppointmentRoomApiTests {
                         .header("Authorization", bearer("read-member")))
                 .andExpect(status().isForbidden()).andExpect(jsonPath("$.code").value("APPOINTMENT_ACCESS_DENIED"));
         service.join("read-member", service.get("read-host", id).inviteCode());
-        mvc.perform(post("/api/v1/appointments/" + id + "/confirm")
+        mvc.perform(post("/api/v1/appointments/" + id + "/confirm/time")
                         .header("Authorization", bearer("read-member"))
-                        .contentType(MediaType.APPLICATION_JSON).content("{\"timeOptionIndex\":0,\"placeOptionIndex\":0}"))
+                        .contentType(MediaType.APPLICATION_JSON).content("{\"optionIndex\":0}"))
                 .andExpect(status().isForbidden()).andExpect(jsonPath("$.code").value("APPOINTMENT_HOST_ONLY"));
+    }
+
+    @Test
+    void individualConfirmationRequiresBodyAndValidOptionIndex() throws Exception {
+        for (String type : new String[]{"time", "place"}) {
+            String path = "/api/v1/appointments/" + id + "/confirm/" + type;
+            mvc.perform(post(path).header("Authorization", bearer("read-host")))
+                    .andExpect(status().isBadRequest()).andExpect(jsonPath("$.code").value("BAD_REQUEST"));
+            for (String body : new String[]{"{}", "{\"optionIndex\":null}", "{\"optionIndex\":-1}"}) {
+                mvc.perform(post(path).header("Authorization", bearer("read-host"))
+                                .contentType(MediaType.APPLICATION_JSON).content(body))
+                        .andExpect(status().isBadRequest())
+                        .andExpect(jsonPath("$.code").value("VALIDATION_ERROR"));
+            }
+            mvc.perform(post(path).header("Authorization", bearer("read-host"))
+                            .contentType(MediaType.APPLICATION_JSON).content("{\"optionIndex\":1}"))
+                    .andExpect(status().isOk())
+                    .andExpect(jsonPath("$.data.status").value(
+                            type.equals("time") ? "COORDINATING" : "CONFIRMED"));
+        }
+        var result = service.get("read-host", id);
+        assertThat(result.confirmedTime()).isEqualTo(result.candidatesTime().get(1));
+        assertThat(result.confirmedPlace()).isEqualTo(result.candidatesPlace().get(1));
+    }
+
+    @Test
+    void bulkConfirmationEndpointIsRemoved() throws Exception {
+        mvc.perform(post("/api/v1/appointments/" + id + "/confirm")
+                        .header("Authorization", bearer("read-host"))
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"timeOptionIndex\":0,\"placeOptionIndex\":0}"))
+                .andExpect(status().isNotFound());
     }
 
     @Test

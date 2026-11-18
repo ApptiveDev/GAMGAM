@@ -3,7 +3,6 @@ package com.gamgam.backend.api.v1;
 import com.gamgam.backend.appointment.dto.AppointmentResponse;
 import com.gamgam.backend.appointment.dto.CreateAppointmentRequest;
 import com.gamgam.backend.appointment.dto.JoinAppointmentRequest;
-import com.gamgam.backend.appointment.dto.ConfirmAppointmentRequest;
 import com.gamgam.backend.appointment.dto.ConfirmOptionRequest;
 import com.gamgam.backend.appointment.vo.VoteType;
 import com.gamgam.backend.appointment.dto.RenameAppointmentRequest;
@@ -98,28 +97,16 @@ public class AppointmentController {
     public ApiResponse<AppointmentResponse> confirmTime(
             @RequestAttribute(AuthInterceptor.USER_ID_ATTRIBUTE) String userId,
             @PathVariable String id,
-            @Valid @RequestBody(required = false) ConfirmOptionRequest request) {
-        Integer index = null;
-        if (request != null) index = request.optionIndex();
-        return ApiResponse.ok(service.confirmOption(userId, id, VoteType.TIME, index));
+            @Valid @RequestBody ConfirmOptionRequest request) {
+        return ApiResponse.ok(service.confirmOption(userId, id, VoteType.TIME, request.optionIndex()));
     }
 
     @PostMapping("/appointments/{id}/confirm/place")
     public ApiResponse<AppointmentResponse> confirmPlace(
             @RequestAttribute(AuthInterceptor.USER_ID_ATTRIBUTE) String userId,
             @PathVariable String id,
-            @Valid @RequestBody(required = false) ConfirmOptionRequest request) {
-        Integer index = null;
-        if (request != null) index = request.optionIndex();
-        return ApiResponse.ok(service.confirmOption(userId, id, VoteType.PLACE, index));
-    }
-
-    @PostMapping("/appointments/{id}/confirm")
-    public ApiResponse<AppointmentResponse> confirm(
-            @RequestAttribute(AuthInterceptor.USER_ID_ATTRIBUTE) String userId,
-            @PathVariable String id,
-            @Valid @RequestBody ConfirmAppointmentRequest request) {
-        return ApiResponse.ok(service.confirm(userId, id, request));
+            @Valid @RequestBody ConfirmOptionRequest request) {
+        return ApiResponse.ok(service.confirmOption(userId, id, VoteType.PLACE, request.optionIndex()));
     }
 
     @PutMapping("/appointments/{id}/penalty")

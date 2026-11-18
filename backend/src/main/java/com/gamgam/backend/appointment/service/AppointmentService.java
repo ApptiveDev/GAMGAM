@@ -2,7 +2,6 @@ package com.gamgam.backend.appointment.service;
 
 import com.gamgam.backend.appointment.dto.AppointmentMemberResponse;
 import com.gamgam.backend.appointment.dto.AppointmentResponse;
-import com.gamgam.backend.appointment.dto.ConfirmAppointmentRequest;
 import com.gamgam.backend.appointment.dto.CreateAppointmentRequest;
 import com.gamgam.backend.appointment.entity.Appointment;
 import com.gamgam.backend.appointment.entity.AppointmentMember;
@@ -140,20 +139,6 @@ public class AppointmentService {
     }
 
     @Transactional
-    public AppointmentResponse confirm(String userId, String appointmentId, ConfirmAppointmentRequest request) {
-        Appointment appointment = findAccessible(userId, appointmentId);
-        requireHost(appointment, userId);
-        requireCoordinating(appointment);
-        if (appointment.getTemplate().coordinatesTime() && appointment.getConfirmedTime() == null) {
-            confirmOption(appointment, VoteType.TIME, request.timeOptionIndex());
-        }
-        if (appointment.getTemplate().coordinatesPlace() && appointment.getConfirmedPlace() == null) {
-            confirmOption(appointment, VoteType.PLACE, request.placeOptionIndex());
-        }
-        return toResponse(appointment);
-    }
-
-    @Transactional
     public AppointmentResponse confirmOption(String userId, String id, VoteType type, Integer index) {
         Appointment appointment = findAccessible(userId, id);
         rooms.requireMember(appointment.getRoomId(), userId);
@@ -173,14 +158,7 @@ public class AppointmentService {
         if (!time) size = appointment.getCandidatesPlace().size();
         if (size == 0) throw new BusinessException(ErrorCode.INVALID_OPTION);
         if (index == null) {
-            int[] counts = new int[size];
-            voteRepository.findByAppointmentIdOrderByIdAsc(appointment.getId()).stream()
-                    .filter(vote -> vote.getType() == type)
-                    .forEach(vote -> counts[vote.getOptionIndex()]++);
-            index = 0;
-            for (int candidate = 1; candidate < size; candidate++) {
-                if (counts[candidate] > counts[index]) index = candidate;
-            }
+            throw new BusinessException(ErrorCode.INVALID_VOTE_OPTION);
         }
         validateIndex(index, size);
         if (time) appointment.confirmTime(index);

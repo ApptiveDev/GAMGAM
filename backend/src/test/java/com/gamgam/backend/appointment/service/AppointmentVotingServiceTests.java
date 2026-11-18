@@ -4,6 +4,8 @@ import static com.gamgam.backend.appointment.AppointmentFixtures.*;
 import static org.assertj.core.api.Assertions.*;
 
 import com.gamgam.backend.appointment.dto.AppointmentVotingResponse;
+import com.gamgam.backend.appointment.vo.AppointmentStatus;
+import com.gamgam.backend.appointment.vo.VoteType;
 import com.gamgam.backend.appointment.dto.TimeCandidateRequest;
 import java.time.ZoneOffset;
 import com.gamgam.backend.appointment.dto.CreateAppointmentRequest.PlaceRequest;
@@ -374,11 +376,11 @@ class AppointmentVotingServiceTests {
                 .isEqualTo(votes.existsByAppointmentIdAndUserId(id, OTHER));
     }
     @Test
-    void independentConfirmationSupportsAutomaticAndHostSelection() {
+    void independentConfirmationUsesHostSelectionRegardlessOfVoteCounts() {
         service.voteTime(id, USER, Set.of(1));
         service.voteTime(id, OTHER, Set.of(1));
-        var time = appointments.confirmOption(USER, id, com.gamgam.backend.appointment.vo.VoteType.TIME, null);
-        assertThat(time.confirmedTime()).isEqualTo(time.candidatesTime().get(1));
+        var time = appointments.confirmOption(USER, id, VoteType.TIME, 0);
+        assertThat(time.confirmedTime()).isEqualTo(time.candidatesTime().get(0));
         assertThat(time.status()).isEqualTo(com.gamgam.backend.appointment.vo.AppointmentStatus.COORDINATING);
         error(() -> service.voteTime(id, OTHER, Set.of()), ErrorCode.VOTE_NOT_ALLOWED);
         error(() -> service.addTimeCandidate(id, USER, new TimeCandidateRequest(future(8))), ErrorCode.VOTE_NOT_ALLOWED);
@@ -391,18 +393,65 @@ class AppointmentVotingServiceTests {
     }
 
     @Test
-    void automaticConfirmationUsesFirstCandidateForTiesAndZeroVotes() {
-        service.voteTime(id, USER, Set.of(0, 1));
-        var result = appointments.confirm(USER, id,
-                new com.gamgam.backend.appointment.dto.ConfirmAppointmentRequest(null, null));
-        assertThat(result.confirmedTime()).isEqualTo(result.candidatesTime().get(0));
-        assertThat(result.confirmedPlace()).isEqualTo(result.candidatesPlace().get(0));
+    void confirmationRequiresSelectionEvenWithZeroVotesOrAClearWinner() {
+        for (VoteType type : VoteType.values()) {
+            error(() -> appointments.confirmOption(USER, id, type, null), ErrorCode.INVALID_VOTE_OPTION);
+        }
+        service.voteTime(id, USER, Set.of(1));
+        service.votePlace(id, USER, Set.of(1));
+        for (VoteType type : VoteType.values()) {
+            error(() -> appointments.confirmOption(USER, id, type, null), ErrorCode.INVALID_VOTE_OPTION);
+        }
+        assertThat(appointments.get(USER, id).confirmedTime()).isNull();
+        assertThat(appointments.get(USER, id).confirmedPlace()).isNull();
+    }
+
+    @Test
+    void appointmentBecomesConfirmedAfterBothOptionsInEitherOrder() {
+        for (VoteType type : VoteType.values()) {
+            String created = appointments.create(roomId, USER, both()).id();
+            var partial = appointments.confirmOption(USER, created, type, 1);
+            assertThat(partial.status()).isEqualTo(AppointmentStatus.COORDINATING);
+            assertThat(appointments.get(USER, created).status()).isEqualTo(AppointmentStatus.COORDINATING);
+            VoteType remaining;
+            if (type == VoteType.TIME) {
+                remaining = VoteType.PLACE;
+                assertThat(partial.confirmedPlace()).isNull();
+            } else {
+                remaining = VoteType.TIME;
+                assertThat(partial.confirmedTime()).isNull();
+            }
+            error(() -> appointments.confirmOption(USER, created, remaining, null), ErrorCode.INVALID_VOTE_OPTION);
+            assertThat(appointments.get(USER, created).status()).isEqualTo(AppointmentStatus.COORDINATING);
+            appointments.confirmOption(USER, created, remaining, 0);
+            var result = appointments.get(USER, created);
+            assertThat(result.status()).isEqualTo(AppointmentStatus.CONFIRMED);
+            if (type == VoteType.TIME) {
+                assertThat(result.confirmedTime()).isEqualTo(partial.confirmedTime());
+                assertThat(result.confirmedPlace()).isEqualTo(result.candidatesPlace().get(0));
+            } else {
+                assertThat(result.confirmedPlace()).isEqualTo(partial.confirmedPlace());
+                assertThat(result.confirmedTime()).isEqualTo(result.candidatesTime().get(0));
+            }
+        }
+    }
+
+    @Test
+    void confirmingOnlyCoordinatedOptionCompletesAppointment() {
+        String timeId = appointments.create(roomId, USER, timeOnly()).id();
+        var time = appointments.confirmOption(USER, timeId, VoteType.TIME, 1);
+        assertThat(time.confirmedTime()).isEqualTo(time.candidatesTime().get(1));
+        assertThat(appointments.get(USER, timeId).status()).isEqualTo(AppointmentStatus.CONFIRMED);
+        String placeId = appointments.create(roomId, USER, placeOnly()).id();
+        var place = appointments.confirmOption(USER, placeId, VoteType.PLACE, 1);
+        assertThat(place.confirmedPlace()).isEqualTo(place.candidatesPlace().get(1));
+        assertThat(appointments.get(USER, placeId).status()).isEqualTo(AppointmentStatus.CONFIRMED);
     }
 
     @Test
     void confirmationRejectsNonHostAndInvalidIndex() {
         service.voteTime(id, OTHER, Set.of(0));
-        error(() -> appointments.confirmOption(OTHER, id, com.gamgam.backend.appointment.vo.VoteType.TIME, null),
+        error(() -> appointments.confirmOption(OTHER, id, com.gamgam.backend.appointment.vo.VoteType.TIME, 0),
                 ErrorCode.APPOINTMENT_HOST_ONLY);
         error(() -> appointments.confirmOption(USER, id, com.gamgam.backend.appointment.vo.VoteType.TIME, 99),
                 ErrorCode.INVALID_VOTE_OPTION);
