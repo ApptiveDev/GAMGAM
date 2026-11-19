@@ -166,6 +166,7 @@ public class AppointmentService {
                                           CreateAppointmentRequest.PenaltyRequest request) {
         Appointment appointment = findAccessible(userId, appointmentId);
         requireHost(appointment, userId);
+        requireCoordinating(appointment);
         appointment.updatePenalty(request.toDomain());
         return toResponse(appointment);
     }

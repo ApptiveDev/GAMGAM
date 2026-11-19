@@ -232,11 +232,11 @@ class AppointmentRoomApiTests {
     }
 
     @Test
-    void penaltyTargetDefaultsOnCreateAndUpdateAndPreservesExplicitChoice() throws Exception {
+    void penaltyTargetDefaultsToAllLateOnCreateAndUpdate() throws Exception {
         for (String targetField : new String[]{"", ",\"target\":null",
-                ",\"target\":\"ALL_LATE\"", ",\"target\":\"LATEST_ONLY\""}) {
+                ",\"target\":\"ALL_LATE\""}) {
             String penalty = "{\"description\":\"Coffee\",\"lateThresholdMin\":\"TEN\"" + targetField + "}";
-            String expected = targetField.contains("LATEST_ONLY") ? "LATEST_ONLY" : "ALL_LATE";
+            String expected = "ALL_LATE";
             mvc.perform(post("/api/v1/rooms/" + roomId + "/appointments")
                             .header("Authorization", bearer("read-host"))
                             .contentType(MediaType.APPLICATION_JSON)
@@ -255,6 +255,48 @@ class AppointmentRoomApiTests {
                     .andExpect(status().isOk())
                     .andExpect(jsonPath("$.data.penalty.target").value(expected))
                     .andExpect(jsonPath("$.data.penaltyAgreedUserIds").doesNotHaveJsonPath());
+        }
+    }
+
+    @Test
+    void unsupportedPenaltyTargetIsRejectedOnCreateAndUpdate() throws Exception {
+        String penalty = "{\"description\":\"Coffee\",\"lateThresholdMin\":\"TEN\",\"target\":\"LATEST_ONLY\"}";
+        mvc.perform(post("/api/v1/rooms/" + roomId + "/appointments")
+                        .header("Authorization", bearer("read-host"))
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"name\":\"Penalty test\",\"penalty\":" + penalty + "}"))
+                .andExpect(status().isBadRequest());
+        mvc.perform(put("/api/v1/appointments/" + id + "/penalty")
+                        .header("Authorization", bearer("read-host"))
+                        .contentType(MediaType.APPLICATION_JSON).content(penalty))
+                .andExpect(status().isBadRequest());
+        assertThat(service.get("read-host", id).penalty()).isNull();
+    }
+
+    @Test
+    void penaltyCanBeEditedUntilBothTimeAndPlaceAreConfirmed() throws Exception {
+        String path = "/api/v1/appointments/" + id + "/penalty";
+        String initial = "{\"description\":\"Coffee\",\"lateThresholdMin\":\"TEN\"}";
+        mvc.perform(put(path).header("Authorization", bearer("read-host"))
+                        .contentType(MediaType.APPLICATION_JSON).content(initial))
+                .andExpect(status().isOk());
+        service.join("read-member", service.get("read-host", id).inviteCode());
+        mvc.perform(put(path).header("Authorization", bearer("read-member"))
+                        .contentType(MediaType.APPLICATION_JSON).content(initial))
+                .andExpect(status().isForbidden()).andExpect(jsonPath("$.code").value("APPOINTMENT_HOST_ONLY"));
+
+        service.confirmOption("read-host", id, com.gamgam.backend.appointment.vo.VoteType.TIME, 0);
+        String updated = "{\"description\":\"Lunch\",\"lateThresholdMin\":\"FIFTEEN\"}";
+        mvc.perform(put(path).header("Authorization", bearer("read-host"))
+                        .contentType(MediaType.APPLICATION_JSON).content(updated))
+                .andExpect(status().isOk()).andExpect(jsonPath("$.data.penalty.description").value("Lunch"));
+        service.confirmOption("read-host", id, com.gamgam.backend.appointment.vo.VoteType.PLACE, 0);
+        for (int phase = 0; phase < 2; phase++) {
+            if (phase == 1) service.complete("read-host", id);
+            mvc.perform(put(path).header("Authorization", bearer("read-host"))
+                            .contentType(MediaType.APPLICATION_JSON).content(initial))
+                    .andExpect(status().isBadRequest()).andExpect(jsonPath("$.code").value("BAD_REQUEST"));
+            assertThat(service.get("read-host", id).penalty().description()).isEqualTo("Lunch");
         }
     }
 

@@ -27,7 +27,7 @@ public final class AppointmentFixtures {
     }
 
     public static PenaltyRequest penalty() {
-        return new PenaltyRequest("커피 사기", LateThreshold.TEN, PenaltyTarget.LATEST_ONLY);
+        return new PenaltyRequest("커피 사기", LateThreshold.TEN, PenaltyTarget.ALL_LATE);
     }
 
     // ALL: 시간·장소 모두 확정
