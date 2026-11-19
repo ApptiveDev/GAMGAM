@@ -1,6 +1,5 @@
 package com.gamgam.backend.appointment.dto;
 
-import jakarta.validation.constraints.NotNull;
-import jakarta.validation.constraints.PositiveOrZero;
+import jakarta.validation.constraints.NotBlank;
 
-public record ConfirmOptionRequest(@NotNull @PositiveOrZero Integer optionIndex) {}
+public record ConfirmOptionRequest(@NotBlank String candidateId) {}

@@ -98,7 +98,7 @@ public class AppointmentController {
             @RequestAttribute(AuthInterceptor.USER_ID_ATTRIBUTE) String userId,
             @PathVariable String id,
             @Valid @RequestBody ConfirmOptionRequest request) {
-        return ApiResponse.ok(service.confirmOption(userId, id, VoteType.TIME, request.optionIndex()));
+        return ApiResponse.ok(service.confirmOption(userId, id, VoteType.TIME, request.candidateId()));
     }
 
     @PostMapping("/appointments/{id}/confirm/place")
@@ -106,7 +106,7 @@ public class AppointmentController {
             @RequestAttribute(AuthInterceptor.USER_ID_ATTRIBUTE) String userId,
             @PathVariable String id,
             @Valid @RequestBody ConfirmOptionRequest request) {
-        return ApiResponse.ok(service.confirmOption(userId, id, VoteType.PLACE, request.optionIndex()));
+        return ApiResponse.ok(service.confirmOption(userId, id, VoteType.PLACE, request.candidateId()));
     }
 
     @PutMapping("/appointments/{id}/penalty")

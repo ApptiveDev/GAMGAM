@@ -28,14 +28,14 @@ public class AppointmentVotingController {
     @PutMapping("/votes/time")
     public ApiResponse<AppointmentVotingResponse> time(@RequestAttribute(AuthInterceptor.USER_ID_ATTRIBUTE) String userId,
             @PathVariable String id, @Valid @RequestBody VoteRequest request) {
-        return ApiResponse.ok(service.voteTime(id, userId, request.optionIndexes()));
+        return ApiResponse.ok(service.voteTime(id, userId, request.candidateIds()));
     }
 
     // 장소 투표
     @PutMapping("/votes/place")
     public ApiResponse<AppointmentVotingResponse> place(@RequestAttribute(AuthInterceptor.USER_ID_ATTRIBUTE) String userId,
             @PathVariable String id, @Valid @RequestBody VoteRequest request) {
-        return ApiResponse.ok(service.votePlace(id, userId, request.optionIndexes()));
+        return ApiResponse.ok(service.votePlace(id, userId, request.candidateIds()));
     }
 
     @PostMapping("/time-candidates")

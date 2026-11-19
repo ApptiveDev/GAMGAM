@@ -20,8 +20,8 @@ public record AppointmentVotingResponse(
         List<TimeOption> timeOptions,
         // 장소 후보별 투표 현황
         List<PlaceOption> placeOptions) {
-    public record TimeOption(int index, OffsetDateTime time, int voteCount,
+    public record TimeOption(String candidateId, OffsetDateTime time, int voteCount,
                              List<String> voterIds, boolean votedByMe) {}
-    public record PlaceOption(int index, Place place, int voteCount,
+    public record PlaceOption(String candidateId, Place place, int voteCount,
                               List<String> voterIds, boolean votedByMe) {}
 }

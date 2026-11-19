@@ -83,9 +83,9 @@ class AppointmentVotingReadTests {
     @Test
     void storedVotesAreGroupedByCandidateAndCurrentUser() throws Exception {
         var appointment = appointments.findById(id).orElseThrow();
-        votes.save(new AppointmentVote(appointment, "u-yeeun", VoteType.TIME, 0));
-        votes.save(new AppointmentVote(appointment, "u-doyun", VoteType.TIME, 0));
-        votes.save(new AppointmentVote(appointment, "u-doyun", VoteType.PLACE, 1));
+        votes.save(new AppointmentVote(appointment, "u-yeeun", VoteType.TIME, appointment.getCandidatesTime().get(0).getCandidateId()));
+        votes.save(new AppointmentVote(appointment, "u-doyun", VoteType.TIME, appointment.getCandidatesTime().get(0).getCandidateId()));
+        votes.save(new AppointmentVote(appointment, "u-doyun", VoteType.PLACE, appointment.getCandidatesPlace().get(1).getCandidateId()));
 
         members.save(new AppointmentMember(UUID.randomUUID().toString(), appointment, users.findById("u-doyun").orElseThrow(), AppointmentMemberRole.MEMBER));
         var regardless = new AppointmentMember(UUID.randomUUID().toString(), appointment, users.findById("u-seoa").orElseThrow(), AppointmentMemberRole.MEMBER);
@@ -93,7 +93,7 @@ class AppointmentVotingReadTests {
         members.save(regardless);
         var otherId = service.create(roomId, "u-yeeun", both()).id();
         votes.save(new AppointmentVote(appointments.findById(otherId).orElseThrow(),
-                "u-harin", VoteType.TIME, 0));
+                "u-harin", VoteType.TIME, service.get("u-yeeun", otherId).candidatesTime().get(0).candidateId()));
 
         mvc.perform(get("/api/v1/appointments/" + id + "/votes").header("Authorization", bearer("u-yeeun")))
                 .andExpect(status().isOk())

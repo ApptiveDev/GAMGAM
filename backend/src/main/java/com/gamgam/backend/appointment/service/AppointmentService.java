@@ -136,16 +136,16 @@ public class AppointmentService {
     }
 
     @Transactional
-    public AppointmentResponse confirmOption(String userId, String id, VoteType type, Integer index) {
+    public AppointmentResponse confirmOption(String userId, String id, VoteType type, String candidateId) {
         Appointment appointment = findAccessible(userId, id);
         rooms.requireMember(appointment.getRoomId(), userId);
         requireHost(appointment, userId);
         requireCoordinating(appointment);
-        confirmOption(appointment, type, index);
+        confirmOption(appointment, type, candidateId);
         return toResponse(appointment);
     }
 
-    private void confirmOption(Appointment appointment, VoteType type, Integer index) {
+    private void confirmOption(Appointment appointment, VoteType type, String candidateId) {
         boolean time = type == VoteType.TIME;
         if (time && (!appointment.getTemplate().coordinatesTime() || appointment.getConfirmedTime() != null)
                 || !time && (!appointment.getTemplate().coordinatesPlace() || appointment.getConfirmedPlace() != null)) {
@@ -154,12 +154,11 @@ public class AppointmentService {
         int size = appointment.getCandidatesTime().size();
         if (!time) size = appointment.getCandidatesPlace().size();
         if (size == 0) throw new BusinessException(ErrorCode.INVALID_OPTION);
-        if (index == null) {
+        if (candidateId == null || candidateId.isBlank()) {
             throw new BusinessException(ErrorCode.INVALID_VOTE_OPTION);
         }
-        validateIndex(index, size);
-        if (time) appointment.confirmTime(index);
-        else appointment.confirmPlace(index);
+        if (time) appointment.confirmTime(candidateId);
+        else appointment.confirmPlace(candidateId);
     }
     @Transactional
     public AppointmentResponse setPenalty(String userId, String appointmentId,
@@ -227,12 +226,6 @@ public class AppointmentService {
     }
 
 
-    private static void validateIndex(int index, int size) {
-        if (index < 0 || index >= size) {
-            throw new BusinessException(ErrorCode.INVALID_VOTE_OPTION);
-        }
-    }
-
     private String generateInviteCode() {
         String code;
         do {
@@ -246,12 +239,12 @@ public class AppointmentService {
                 .findAllByAppointmentIdOrderByJoinedAtAsc(appointment.getId()).stream()
                 .map(AppointmentMemberResponse::from).toList();
         var allVotes = voteRepository.findByAppointmentIdOrderByIdAsc(appointment.getId());
-        Map<Integer, List<String>> timeVotes = new LinkedHashMap<>();
+        Map<String, List<String>> timeVotes = new LinkedHashMap<>();
         allVotes.stream().filter(vote -> vote.getType() == VoteType.TIME).forEach(vote ->
-                timeVotes.computeIfAbsent(vote.getOptionIndex(), ignored -> new ArrayList<>()).add(vote.getUserId()));
-        Map<Integer, List<String>> placeVotes = new LinkedHashMap<>();
+                timeVotes.computeIfAbsent(vote.getCandidateId(), ignored -> new ArrayList<>()).add(vote.getUserId()));
+        Map<String, List<String>> placeVotes = new LinkedHashMap<>();
         allVotes.stream().filter(vote -> vote.getType() == VoteType.PLACE).forEach(vote ->
-                placeVotes.computeIfAbsent(vote.getOptionIndex(), ignored -> new ArrayList<>()).add(vote.getUserId()));
+                placeVotes.computeIfAbsent(vote.getCandidateId(), ignored -> new ArrayList<>()).add(vote.getUserId()));
         return AppointmentResponse.of(appointment, shareLinkGenerator.create(appointment.getInviteCode()),
                 members, timeVotes, placeVotes);
     }

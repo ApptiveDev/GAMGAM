@@ -89,16 +89,16 @@ Java 21, Spring Boot 4.1.1, Spring Web MVC, Bean Validation, Spring Data JPA를 
 | Method | Path | 요청 |
 | --- | --- | --- |
 | GET | `/api/v1/appointments/{id}/votes` | 투표 현황 조회 |
-| PUT | `/api/v1/appointments/{id}/votes/time` | `{"optionIndexes":[0,1]}` |
-| PUT | `/api/v1/appointments/{id}/votes/place` | `{"optionIndexes":[0,1]}` |
+| PUT | `/api/v1/appointments/{id}/votes/time` | `{"candidateIds":["후보 UUID 1","후보 UUID 2"]}` |
+| PUT | `/api/v1/appointments/{id}/votes/place` | `{"candidateIds":["후보 UUID 1","후보 UUID 2"]}` |
 | PUT | `/api/v1/appointments/{id}/votes/regardless` | `{"selected":true}` 또는 `false` |
 | POST | `/api/v1/appointments/{id}/time-candidates` | `{"time":"2030-01-03T18:00:00+09:00"}` |
 | POST | `/api/v1/appointments/{id}/place-candidates` | `{"name":"새 카페","latitude":37.5,"longitude":127.0}` |
 
 - 방 멤버가 시간 또는 장소 후보에 투표하면 약속 참여자로 등록됩니다. 후보 추가만으로는 참여하거나 투표하지 않습니다.
 - 투표 PUT은 해당 종류의 내 선택 전체를 교체합니다. 빈 배열 `[]`로 해당 종류의 투표를 모두 취소합니다. 다른 종류의 내 표와 다른 사람의 표는 유지됩니다.
-- 인덱스는 0부터 시작합니다. 필드 생략, `null`, 음수, 범위 밖 인덱스는 거절하며 중복 인덱스는 한 표로 처리합니다.
-- 시간·장소 표가 모두 없고 상관없이 참여도 꺼져 있으면 일반 참여자의 멤버·투표·벌칙 동의 기록을 제거합니다.
+- 시간·장소 후보는 생성 시 발급하여 DB에 저장한 UUID인 `candidateId`로 식별합니다. `candidateIds` 필드 생략, `null`, 빈 문자열·공백, 존재하지 않는 ID, 다른 약속 또는 다른 종류의 후보 ID는 거절하며 중복 ID는 한 표로 처리합니다.
+- 시간·장소 표가 모두 없고 상관없이 참여도 꺼져 있으면 일반 참여자의 멤버·투표 기록을 제거합니다.
 - 방장은 투표를 모두 취소해도 `HOST` 멤버로 유지됩니다. 다만 실제 표나 상관없이 참여 표시가 없으면 투표 응답의 참여자 목록에는 포함되지 않습니다.
 - 상관없이 참여를 켜면 내 시간·장소 표를 모두 지웁니다. 특정 후보에 투표하면 상관없이 참여가 해제됩니다. 상관없이 참여자는 특정 후보의 득표수에 합산하지 않습니다.
 - 후보는 기존 목록 뒤에 추가하며 삭제·재정렬 API는 없습니다.
@@ -107,6 +107,16 @@ Java 21, Spring Boot 4.1.1, Spring Web MVC, Bean Validation, Spring Data JPA를 
 - `COORDINATING` 상태에서 해당 템플릿이 조율하는 항목만 투표·후보 추가가 가능합니다. 확정된 항목의 투표 변경·후보 추가는 막습니다.
 - 조율 대상 중 하나라도 확정되면 상관없이 참여 전환도 막습니다. 생성 시 미리 지정한 확정 항목은 이 제한의 대상이 아닙니다.
 
+생성 요청의 후보 입력 형식은 그대로입니다. 서버가 ID를 발급하므로 클라이언트는 생성·조회·후보 추가 응답에서 받은 ID를 사용합니다.
+
+| 응답 필드 | 항목 형식 |
+| --- | --- |
+| 약속 응답 `candidatesTime` | `{"candidateId":"UUID","time":"2030-01-03T18:00:00+09:00"}` |
+| 약속 응답 `candidatesPlace` | `{"candidateId":"UUID","place":{"name":"카페","latitude":37.5,"longitude":127.0}}` |
+| 약속 응답 `timeVotes`, `placeVotes` | `{"후보 UUID":["사용자 ID"]}` |
+
+투표 응답의 `timeOptions`·`placeOptions`에도 동일한 `candidateId`가 포함됩니다. `confirmedTime`·`confirmedPlace`는 기존 확정값 형식을 유지합니다. 이전 `optionIndex`·`optionIndexes` 요청은 지원하지 않습니다.
+
 투표 응답 `data`에는 다음 필드가 포함됩니다.
 
 | 필드 | 의미 |
@@ -114,10 +124,10 @@ Java 21, Spring Boot 4.1.1, Spring Web MVC, Bean Validation, Spring Data JPA를 
 | `appointmentId`, `roomId`, `status` | 약속·방·상태 |
 | `participating`, `participantIds` | 내 참여 여부와 실제 참여자 ID 목록 |
 | `participatingRegardless`, `regardlessParticipantIds` | 상관없이 참여 여부와 해당 사용자 목록 |
-| `timeOptions` | `index`, `time`, `voteCount`, `voterIds`, `votedByMe` |
-| `placeOptions` | `index`, `place`, `voteCount`, `voterIds`, `votedByMe` |
+| `timeOptions` | `candidateId`, `time`, `voteCount`, `voterIds`, `votedByMe` |
+| `placeOptions` | `candidateId`, `place`, `voteCount`, `voterIds`, `votedByMe` |
 
-후보의 득표순 표시는 프론트에서 `voteCount` 내림차순으로 정렬합니다. 동률은 `index` 오름차순으로 표시하며, 투표·확정 요청에는 화면상의 순서가 아닌 후보의 원래 `index`를 사용합니다. 백엔드는 후보 등록 순서로 반환합니다.
+후보의 득표순 표시는 프론트에서 `voteCount` 내림차순으로 정렬합니다. 동률은 응답의 등록 순서를 유지하며, 투표·확정 요청에는 선택한 후보의 `candidateId`를 사용합니다. 화면에서 정렬해도 ID는 바뀌지 않습니다. 백엔드는 후보 등록 순서로 반환합니다.
 
 이전 `POST /votes/time/{index}`, `PUT /votes/place/{index}`, `DELETE /votes/place`, `POST /options/time` 경로는 제거되었습니다. 취소도 현재 PUT API의 빈 배열로 처리합니다.
 
@@ -127,16 +137,16 @@ Java 21, Spring Boot 4.1.1, Spring Web MVC, Bean Validation, Spring Data JPA를 
 
 | Method | Path | 요청과 동작 |
 | --- | --- | --- |
-| POST | `/api/v1/appointments/{id}/confirm/time` | 시간 확정. `{"optionIndex":1}` 필수 |
-| POST | `/api/v1/appointments/{id}/confirm/place` | 장소 확정. `{"optionIndex":0}` 필수 |
+| POST | `/api/v1/appointments/{id}/confirm/time` | 시간 확정. `{"candidateId":"시간 후보 UUID"}` 필수 |
+| POST | `/api/v1/appointments/{id}/confirm/place` | 장소 확정. `{"candidateId":"장소 후보 UUID"}` 필수 |
 | POST | `/api/v1/appointments/{id}/complete` | 방장이 `CONFIRMED` 약속을 `COMPLETED`로 변경 |
 
-- 요청 본문과 0 이상의 `optionIndex`는 필수입니다. 본문 생략, `{}`, `null`, 음수 또는 후보 범위 밖의 인덱스는 HTTP 400으로 거절합니다. 후보가 없는 경우에도 확정할 수 없습니다.
+- 요청 본문과 `candidateId`는 필수입니다. 본문 생략, `{}`, `null`, 빈 문자열·공백, 존재하지 않는 ID, 다른 약속 또는 다른 종류의 후보 ID는 HTTP 400으로 거절합니다. 후보가 없는 경우에도 확정할 수 없습니다.
 - 개별 확정은 해당 방 멤버인 약속 방장만 호출할 수 있습니다. 이미 확정한 항목은 재확정할 수 없습니다.
 - 일괄 확정 API(`/api/v1/appointments/{id}/confirm`)는 제거했습니다.
 - 시간과 장소가 모두 정해지면 `CONFIRMED`가 됩니다. 일부만 정해졌다면 `COORDINATING`을 유지하며 남은 항목을 계속 투표할 수 있습니다.
 - 시간·장소의 확정 순서는 자유입니다. `TIME_ONLY`·`PLACE_ONLY`는 생성 시 정해진 항목이 있으므로 남은 항목을 확정하면 `CONFIRMED`가 됩니다.
-- 생성자가 지도 표시 시점까지 선택하지 않았을 때 최다득표 후보를 자동 선정하는 기능은 향후 개발 예정입니다. 현재 후보 번호 생략이나 특정 시각 도달에 따른 자동 확정은 없습니다.
+- 생성자가 지도 표시 시점까지 선택하지 않았을 때 최다득표 후보를 자동 선정하는 기능은 향후 개발 예정입니다. 현재 후보 ID 생략이나 특정 시각 도달에 따른 자동 확정은 없습니다.
 
 ## 약속 나가기와 강퇴
 
@@ -177,7 +187,7 @@ Java 21, Spring Boot 4.1.1, Spring Web MVC, Bean Validation, Spring Data JPA를 
 - 멤버·투표 — `members`, `timeVotes`, `placeVotes`
 - 기존 공유 관련 필드 — `shareUrl`, `inviteCode`
 
-`timeVotes`와 `placeVotes`는 후보 인덱스별 사용자 ID 목록입니다. 후보·확정 시간은 UTC로 저장하고 응답에서는 KST(`+09:00`)로 변환합니다. `createdAt`은 `Instant`입니다.
+`timeVotes`와 `placeVotes`는 후보 ID를 키로 하는 사용자 ID 목록입니다. 후보·확정 시간은 UTC로 저장하고 응답에서는 KST(`+09:00`)로 변환합니다. `createdAt`은 `Instant`입니다.
 
 약속 멤버는 `AppointmentMember`로 통합했습니다. 역할은 `HOST`·`MEMBER`이고 상관없이 참여 여부는 `regardlessOfTimeAndPlace`로 관리합니다. 시간·장소 투표는 `AppointmentVote`와 `VoteType.TIME`·`PLACE`로 통합했습니다. 투표 변경·후보 추가·확정·참여자 제거 등의 변경 작업은 약속 행 잠금을 사용해 처리합니다.
 
@@ -222,11 +232,18 @@ $future = (Get-Date).AddDays(1).ToString('o')
 $timeBody = @{ time = $future } | ConvertTo-Json
 Invoke-RestMethod -Method Post -Uri "$url/time-candidates" -Headers $headers -ContentType 'application/json' -Body $timeBody
 Invoke-RestMethod -Method Post -Uri "$url/place-candidates" -Headers $headers -ContentType 'application/json' -Body '{"name":"Cafe"}'
-Invoke-RestMethod -Method Put -Uri "$url/votes/time" -Headers $headers -ContentType 'application/json' -Body '{"optionIndexes":[0]}'
-Invoke-RestMethod -Method Put -Uri "$url/votes/place" -Headers $headers -ContentType 'application/json' -Body '{"optionIndexes":[0]}'
+$voting = Invoke-RestMethod -Uri "$url/votes" -Headers $headers
+$timeId = $voting.data.timeOptions[0].candidateId
+$placeId = $voting.data.placeOptions[0].candidateId
+$timeVote = @{ candidateIds = @($timeId) } | ConvertTo-Json
+$placeVote = @{ candidateIds = @($placeId) } | ConvertTo-Json
+Invoke-RestMethod -Method Put -Uri "$url/votes/time" -Headers $headers -ContentType 'application/json' -Body $timeVote
+Invoke-RestMethod -Method Put -Uri "$url/votes/place" -Headers $headers -ContentType 'application/json' -Body $placeVote
 Invoke-RestMethod -Uri "$url/votes" -Headers $headers | ConvertTo-Json -Depth 8
-Invoke-RestMethod -Method Post -Uri "$url/confirm/time" -Headers $headers -ContentType 'application/json' -Body '{"optionIndex":0}'
-Invoke-RestMethod -Method Post -Uri "$url/confirm/place" -Headers $headers -ContentType 'application/json' -Body '{"optionIndex":0}'
+$timeConfirm = @{ candidateId = $timeId } | ConvertTo-Json
+$placeConfirm = @{ candidateId = $placeId } | ConvertTo-Json
+Invoke-RestMethod -Method Post -Uri "$url/confirm/time" -Headers $headers -ContentType 'application/json' -Body $timeConfirm
+Invoke-RestMethod -Method Post -Uri "$url/confirm/place" -Headers $headers -ContentType 'application/json' -Body $placeConfirm
 Invoke-RestMethod -Uri $url -Headers $headers | ConvertTo-Json -Depth 8
 ```
 

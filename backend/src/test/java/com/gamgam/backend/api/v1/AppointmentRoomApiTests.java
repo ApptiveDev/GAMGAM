@@ -35,6 +35,20 @@ class AppointmentRoomApiTests {
     @Autowired RoomMemberRepository roomMembers;
     @Autowired AppointmentMemberRepository members;
 
+    private String candidateId(String type, int position) {
+        var appointment = service.get("read-host", id);
+        return type.equals("time") ? appointment.candidatesTime().get(position).candidateId()
+                : appointment.candidatesPlace().get(position).candidateId();
+    }
+
+    private String voteBody(String type, int... positions) {
+        return "{\"candidateIds\":[" + java.util.Arrays.stream(positions)
+                .mapToObj(position -> "\"" + candidateId(type, position) + "\"")
+                .collect(java.util.stream.Collectors.joining(",")) + "]}";
+    }
+    private String confirmBody(String type, int position) {
+        return "{\"candidateId\":\"" + candidateId(type, position) + "\"}";
+    }
     private MockMvc mvc;
     private String roomId;
     private String id;
@@ -101,31 +115,31 @@ class AppointmentRoomApiTests {
         service.join("read-member", service.get("read-host", id).inviteCode());
         mvc.perform(post("/api/v1/appointments/" + id + "/confirm/time")
                         .header("Authorization", bearer("read-member"))
-                        .contentType(MediaType.APPLICATION_JSON).content("{\"optionIndex\":0}"))
+                        .contentType(MediaType.APPLICATION_JSON).content(confirmBody("time", 0)))
                 .andExpect(status().isForbidden()).andExpect(jsonPath("$.code").value("APPOINTMENT_HOST_ONLY"));
     }
 
     @Test
-    void individualConfirmationRequiresBodyAndValidOptionIndex() throws Exception {
+    void individualConfirmationRequiresBodyAndValidCandidateId() throws Exception {
         for (String type : new String[]{"time", "place"}) {
             String path = "/api/v1/appointments/" + id + "/confirm/" + type;
             mvc.perform(post(path).header("Authorization", bearer("read-host")))
                     .andExpect(status().isBadRequest()).andExpect(jsonPath("$.code").value("BAD_REQUEST"));
-            for (String body : new String[]{"{}", "{\"optionIndex\":null}", "{\"optionIndex\":-1}"}) {
+            for (String body : new String[]{"{}", "{\"candidateId\":null}", "{\"candidateId\":\" \"}"}) {
                 mvc.perform(post(path).header("Authorization", bearer("read-host"))
                                 .contentType(MediaType.APPLICATION_JSON).content(body))
                         .andExpect(status().isBadRequest())
                         .andExpect(jsonPath("$.code").value("VALIDATION_ERROR"));
             }
             mvc.perform(post(path).header("Authorization", bearer("read-host"))
-                            .contentType(MediaType.APPLICATION_JSON).content("{\"optionIndex\":1}"))
+                            .contentType(MediaType.APPLICATION_JSON).content(confirmBody(type, 1)))
                     .andExpect(status().isOk())
                     .andExpect(jsonPath("$.data.status").value(
                             type.equals("time") ? "COORDINATING" : "CONFIRMED"));
         }
         var result = service.get("read-host", id);
-        assertThat(result.confirmedTime()).isEqualTo(result.candidatesTime().get(1));
-        assertThat(result.confirmedPlace()).isEqualTo(result.candidatesPlace().get(1));
+        assertThat(result.confirmedTime()).isEqualTo(result.candidatesTime().get(1).time());
+        assertThat(result.confirmedPlace()).isEqualTo(result.candidatesPlace().get(1).place());
     }
 
     @Test
@@ -135,6 +149,38 @@ class AppointmentRoomApiTests {
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("{\"timeOptionIndex\":0,\"placeOptionIndex\":0}"))
                 .andExpect(status().isNotFound());
+    }
+
+    @Test
+    void candidateIdsAreSharedAcrossReadApisAndLegacyIndexRequestsAreRejected() throws Exception {
+        String base = "/api/v1/appointments/" + id;
+        String token = bearer("read-host");
+        for (String type : new String[]{"time", "place"}) {
+            String candidateId = candidateId(type, 0);
+            String candidates = type.equals("time") ? "candidatesTime" : "candidatesPlace";
+            mvc.perform(get(base).header("Authorization", token))
+                    .andExpect(status().isOk())
+                    .andExpect(jsonPath("$.data." + candidates + "[0].candidateId").value(candidateId));
+            mvc.perform(get(base + "/votes").header("Authorization", token))
+                    .andExpect(status().isOk())
+                    .andExpect(jsonPath("$.data." + type + "Options[0].candidateId").value(candidateId))
+                    .andExpect(jsonPath("$.data." + type + "Options[0].index").doesNotHaveJsonPath());
+            mvc.perform(put(base + "/votes/" + type).header("Authorization", token)
+                            .contentType(MediaType.APPLICATION_JSON).content("{\"optionIndexes\":[0]}"))
+                    .andExpect(status().isBadRequest());
+            mvc.perform(post(base + "/confirm/" + type).header("Authorization", token)
+                            .contentType(MediaType.APPLICATION_JSON).content("{\"optionIndex\":0}"))
+                    .andExpect(status().isBadRequest());
+            String opposite = candidateId(type.equals("time") ? "place" : "time", 0);
+            mvc.perform(put(base + "/votes/" + type).header("Authorization", token)
+                            .contentType(MediaType.APPLICATION_JSON)
+                            .content("{\"candidateIds\":[\"" + opposite + "\"]}"))
+                    .andExpect(status().isBadRequest()).andExpect(jsonPath("$.code").value("INVALID_OPTION"));
+            mvc.perform(post(base + "/confirm/" + type).header("Authorization", token)
+                            .contentType(MediaType.APPLICATION_JSON)
+                            .content("{\"candidateId\":\"" + opposite + "\"}"))
+                    .andExpect(status().isBadRequest()).andExpect(jsonPath("$.code").value("INVALID_VOTE_OPTION"));
+        }
     }
 
     @Test
@@ -148,31 +194,31 @@ class AppointmentRoomApiTests {
         String base = "/api/v1/appointments/" + id;
         String token = bearer("read-member");
         mvc.perform(put(base + "/votes/time").header("Authorization", token)
-                        .contentType(MediaType.APPLICATION_JSON).content("{\"optionIndexes\":[0]}"))
+                        .contentType(MediaType.APPLICATION_JSON).content(voteBody("time", 0)))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.data.timeOptions[0].voterIds[0]").value("read-member"));
         mvc.perform(get(base + "/votes").header("Authorization", token))
                 .andExpect(status().isOk()).andExpect(jsonPath("$.data.timeOptions[0].voteCount").value(1))
                 .andExpect(jsonPath("$.data.participating").value(true));
         mvc.perform(put(base + "/votes/place").header("Authorization", token)
-                        .contentType(MediaType.APPLICATION_JSON).content("{\"optionIndexes\":[1]}"))
+                        .contentType(MediaType.APPLICATION_JSON).content(voteBody("place", 1)))
                 .andExpect(status().isOk()).andExpect(jsonPath("$.data.placeOptions[1].voterIds[0]").value("read-member"));
         mvc.perform(put(base + "/votes/time").header("Authorization", token)
-                        .contentType(MediaType.APPLICATION_JSON).content("{\"optionIndexes\":[]}"))
+                        .contentType(MediaType.APPLICATION_JSON).content(voteBody("time")))
                 .andExpect(status().isOk()).andExpect(jsonPath("$.data.timeOptions[0].voteCount").value(0));
         mvc.perform(put(base + "/votes/place").header("Authorization", token)
-                        .contentType(MediaType.APPLICATION_JSON).content("{\"optionIndexes\":[]}"))
+                        .contentType(MediaType.APPLICATION_JSON).content(voteBody("place")))
                 .andExpect(status().isOk()).andExpect(jsonPath("$.data.participating").value(false));
         mvc.perform(get(base).header("Authorization", token))
                 .andExpect(status().isOk()).andExpect(jsonPath("$.data.placeVotes").isEmpty());
         assertThat(members.existsByAppointmentIdAndUserId(id, "read-member")).isFalse();
         mvc.perform(put(base + "/votes/time").header("Authorization", token)
-                        .contentType(MediaType.APPLICATION_JSON).content("{\"optionIndexes\":[1]}"))
+                        .contentType(MediaType.APPLICATION_JSON).content(voteBody("time", 1)))
                 .andExpect(status().isOk());
         mvc.perform(get("/api/v1/rooms/" + roomId + "/appointments").header("Authorization", token))
-                .andExpect(status().isOk()).andExpect(jsonPath("$.data[0].timeVotes['1'][0]").value("read-member"));
+                .andExpect(status().isOk()).andExpect(jsonPath("$.data[0].timeVotes['" + candidateId("time", 1) + "'][0]").value("read-member"));
         mvc.perform(get("/api/v1/appointments").header("Authorization", token))
-                .andExpect(status().isOk()).andExpect(jsonPath("$.data[0].timeVotes['1'][0]").value("read-member"));
+                .andExpect(status().isOk()).andExpect(jsonPath("$.data[0].timeVotes['" + candidateId("time", 1) + "'][0]").value("read-member"));
     }
     @Test
     void hostCanRenameAndReadUpdatedName() throws Exception {
@@ -285,12 +331,12 @@ class AppointmentRoomApiTests {
                         .contentType(MediaType.APPLICATION_JSON).content(initial))
                 .andExpect(status().isForbidden()).andExpect(jsonPath("$.code").value("APPOINTMENT_HOST_ONLY"));
 
-        service.confirmOption("read-host", id, com.gamgam.backend.appointment.vo.VoteType.TIME, 0);
+        service.confirmOption("read-host", id, com.gamgam.backend.appointment.vo.VoteType.TIME, candidateId("time", 0));
         String updated = "{\"description\":\"Lunch\",\"lateThresholdMin\":\"FIFTEEN\"}";
         mvc.perform(put(path).header("Authorization", bearer("read-host"))
                         .contentType(MediaType.APPLICATION_JSON).content(updated))
                 .andExpect(status().isOk()).andExpect(jsonPath("$.data.penalty.description").value("Lunch"));
-        service.confirmOption("read-host", id, com.gamgam.backend.appointment.vo.VoteType.PLACE, 0);
+        service.confirmOption("read-host", id, com.gamgam.backend.appointment.vo.VoteType.PLACE, candidateId("place", 0));
         for (int phase = 0; phase < 2; phase++) {
             if (phase == 1) service.complete("read-host", id);
             mvc.perform(put(path).header("Authorization", bearer("read-host"))

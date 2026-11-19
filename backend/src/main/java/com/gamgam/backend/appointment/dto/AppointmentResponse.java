@@ -19,9 +19,9 @@ public record AppointmentResponse(
         String roomId,
         String name,
         AppointmentTemplate template,
-        List<OffsetDateTime> candidatesTime,
+        List<TimeCandidateResponse> candidatesTime,
         OffsetDateTime confirmedTime,
-        List<Place> candidatesPlace,
+        List<PlaceCandidateResponse> candidatesPlace,
         Place confirmedPlace,
         PenaltyRule penalty,
         RewardRule reward,
@@ -32,12 +32,15 @@ public record AppointmentResponse(
         String hostId,
         String inviteCode,
         List<AppointmentMemberResponse> members,
-        Map<Integer, List<String>> timeVotes,
-        Map<Integer, List<String>> placeVotes
+        Map<String, List<String>> timeVotes,
+        Map<String, List<String>> placeVotes
 ) {
+    public record TimeCandidateResponse(String candidateId, OffsetDateTime time) {}
+    public record PlaceCandidateResponse(String candidateId, Place place) {}
+
     public AppointmentResponse(String id, String name, AppointmentTemplate template,
-                               List<OffsetDateTime> candidatesTime, OffsetDateTime confirmedTime,
-                               List<Place> candidatesPlace, Place confirmedPlace,
+                               List<TimeCandidateResponse> candidatesTime, OffsetDateTime confirmedTime,
+                               List<PlaceCandidateResponse> candidatesPlace, Place confirmedPlace,
                                PenaltyRule penalty, RewardRule reward, LocationSharingPolicy locationSharing,
                                AppointmentStatus status, String shareUrl, Instant createdAt) {
         this(id, null, name, template, candidatesTime, confirmedTime, candidatesPlace, confirmedPlace,
@@ -52,9 +55,11 @@ public record AppointmentResponse(
                 appointment.getName(),
                 appointment.getTemplate(),
                 // 시간 필드(candidatesTime, confirmedTime)는 DB엔 UTC로 저장돼 있고, 이 응답 DTO로 변환되는 시점에 KST(+09:00)로 바뀐다.
-                KstTimeConverter.toKst(appointment.getCandidatesTime()),
+                appointment.getCandidatesTime().stream().map(candidate -> new TimeCandidateResponse(
+                        candidate.getCandidateId(), KstTimeConverter.toKst(candidate.getTime()))).toList(),
                 KstTimeConverter.toKst(appointment.getConfirmedTime()),
-                List.copyOf(appointment.getCandidatesPlace()),
+                appointment.getCandidatesPlace().stream().map(candidate -> new PlaceCandidateResponse(
+                        candidate.getCandidateId(), candidate.getPlace())).toList(),
                 appointment.getConfirmedPlace(),
                 appointment.getPenalty(),
                 appointment.getReward(),
@@ -67,8 +72,8 @@ public record AppointmentResponse(
 
     public static AppointmentResponse of(Appointment appointment, String shareUrl,
                                          List<AppointmentMemberResponse> members,
-                                         Map<Integer, List<String>> timeVotes,
-                                         Map<Integer, List<String>> placeVotes) {
+                                         Map<String, List<String>> timeVotes,
+                                         Map<String, List<String>> placeVotes) {
         AppointmentResponse base = of(appointment, shareUrl);
         return new AppointmentResponse(base.id, base.roomId, base.name, base.template, base.candidatesTime,
                 base.confirmedTime, base.candidatesPlace, base.confirmedPlace, base.penalty, base.reward,

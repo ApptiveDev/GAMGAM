@@ -45,6 +45,7 @@ class AppointmentVotingServiceTests {
     @Autowired AppointmentService appointments;
     @Autowired AppointmentMemberRepository members;
     @Autowired AppointmentVoteRepository votes;
+    @Autowired com.gamgam.backend.appointment.repository.AppointmentRepository appointmentRepository;
     @Autowired PlatformTransactionManager transactionManager;
     @Autowired UserRepository users;
     @Autowired RoomService rooms;
@@ -70,8 +71,8 @@ class AppointmentVotingServiceTests {
     @Test
     void 시간만_복수_투표해도_신청되고_재요청은_중복되지_않는다() {
         assertThat(service.get(id, USER).participating()).isFalse();
-        service.voteTime(id, USER, Set.of(0, 1));
-        var response = service.voteTime(id, USER, Set.of(0, 1));
+        service.voteTime(id, USER, Set.of(candidateId(id, VoteType.TIME, 0), candidateId(id, VoteType.TIME, 1)));
+        var response = service.voteTime(id, USER, Set.of(candidateId(id, VoteType.TIME, 0), candidateId(id, VoteType.TIME, 1)));
         assertThat(response.participating()).isTrue();
         assertThat(response.participantIds()).containsExactly(USER);
         assertThat(response.timeOptions()).allSatisfy(option -> {
@@ -84,9 +85,9 @@ class AppointmentVotingServiceTests {
 
     @Test
     void 장소만_복수_투표해도_신청되고_내_선택만_교체된다() {
-        service.votePlace(id, USER, Set.of(0, 1));
-        service.votePlace(id, OTHER, Set.of(0));
-        var response = service.votePlace(id, USER, Set.of(1));
+        service.votePlace(id, USER, Set.of(candidateId(id, VoteType.PLACE, 0), candidateId(id, VoteType.PLACE, 1)));
+        service.votePlace(id, OTHER, Set.of(candidateId(id, VoteType.PLACE, 0)));
+        var response = service.votePlace(id, USER, Set.of(candidateId(id, VoteType.PLACE, 1)));
         assertThat(response.participating()).isTrue();
         assertThat(response.placeOptions().get(0).voterIds()).containsExactly(OTHER);
         assertThat(response.placeOptions().get(1).voterIds()).containsExactly(USER);
@@ -95,8 +96,8 @@ class AppointmentVotingServiceTests {
 
     @Test
     void 다른_종류의_표가_남으면_신청을_유지하고_마지막_표를_취소하면_신청도_취소된다() {
-        service.voteTime(id, USER, Set.of(0));
-        service.votePlace(id, USER, Set.of(1));
+        service.voteTime(id, USER, Set.of(candidateId(id, VoteType.TIME, 0)));
+        service.votePlace(id, USER, Set.of(candidateId(id, VoteType.PLACE, 1)));
         assertThat(service.voteTime(id, USER, Set.of()).participating()).isTrue();
         var response = service.votePlace(id, USER, Set.of());
         assertThat(response.participating()).isFalse();
@@ -108,9 +109,9 @@ class AppointmentVotingServiceTests {
 
     @Test
     void 상관없이_참여는_시간과_장소_표를_모두_지우고_신청한다() {
-        service.voteTime(id, USER, Set.of(0, 1));
-        service.votePlace(id, USER, Set.of(0, 1));
-        service.voteTime(id, OTHER, Set.of(0));
+        service.voteTime(id, USER, Set.of(candidateId(id, VoteType.TIME, 0), candidateId(id, VoteType.TIME, 1)));
+        service.votePlace(id, USER, Set.of(candidateId(id, VoteType.PLACE, 0), candidateId(id, VoteType.PLACE, 1)));
+        service.voteTime(id, OTHER, Set.of(candidateId(id, VoteType.TIME, 0)));
         var response = service.participateRegardless(id, USER, true);
         assertThat(response.participating()).isTrue();
         assertThat(response.participatingRegardless()).isTrue();
@@ -127,7 +128,7 @@ class AppointmentVotingServiceTests {
         service.participateRegardless(id, USER, true);
         // 이미 비어 있는 후보 표의 취소는 상관없이 참여 선택을 해제하지 않는다.
         assertThat(service.voteTime(id, USER, Set.of()).participatingRegardless()).isTrue();
-        var response = service.votePlace(id, USER, Set.of(0, 1));
+        var response = service.votePlace(id, USER, Set.of(candidateId(id, VoteType.PLACE, 0), candidateId(id, VoteType.PLACE, 1)));
         assertThat(response.participating()).isTrue();
         assertThat(response.participatingRegardless()).isFalse();
         assertThat(response.regardlessParticipantIds()).isEmpty();
@@ -141,7 +142,7 @@ class AppointmentVotingServiceTests {
         assertThat(proposed.placeOptions()).hasSize(3);
         assertThat(proposed.placeOptions().get(2).place().name()).isEqualTo("새 카페");
         assertThat(proposed.placeOptions().get(2).voteCount()).isZero();
-        assertThat(service.votePlace(id, USER, Set.of(2)).placeOptions().get(2).votedByMe()).isTrue();
+        assertThat(service.votePlace(id, USER, Set.of(candidateId(id, VoteType.PLACE, 2))).placeOptions().get(2).votedByMe()).isTrue();
         assertThat(service.get(id, OTHER).placeOptions().get(2).voterIds()).containsExactly(USER);
     }
 
@@ -155,19 +156,19 @@ class AppointmentVotingServiceTests {
 
     @Test
     void 잘못된_후보는_기존_투표와_상관없이_참여를_변경하지_않는다() {
-        service.voteTime(id, USER, Set.of(0));
-        error(() -> service.voteTime(id, USER, Set.of(1, 9)), ErrorCode.INVALID_OPTION);
+        service.voteTime(id, USER, Set.of(candidateId(id, VoteType.TIME, 0)));
+        error(() -> service.voteTime(id, USER, Set.of(candidateId(id, VoteType.TIME, 1), "missing-candidate")), ErrorCode.INVALID_OPTION);
         assertThat(service.get(id, USER).timeOptions().get(0).votedByMe()).isTrue();
         service.participateRegardless(id, USER, true);
-        error(() -> service.votePlace(id, USER, Set.of(-1)), ErrorCode.INVALID_OPTION);
+        error(() -> service.votePlace(id, USER, Set.of("missing-candidate")), ErrorCode.INVALID_OPTION);
         assertThat(service.get(id, USER).participatingRegardless()).isTrue();
     }
 
     @Test
     void 방_멤버가_아니면_조회_투표_제안_신청을_할_수_없다() {
         error(() -> service.get(id, "outsider"), ErrorCode.ROOM_ACCESS_DENIED);
-        error(() -> service.voteTime(id, "outsider", Set.of(0)), ErrorCode.ROOM_ACCESS_DENIED);
-        error(() -> service.votePlace(id, "outsider", Set.of(0)), ErrorCode.ROOM_ACCESS_DENIED);
+        error(() -> service.voteTime(id, "outsider", Set.of(candidateId(id, VoteType.TIME, 0))), ErrorCode.ROOM_ACCESS_DENIED);
+        error(() -> service.votePlace(id, "outsider", Set.of(candidateId(id, VoteType.PLACE, 0))), ErrorCode.ROOM_ACCESS_DENIED);
         error(() -> service.addPlaceCandidate(id, "outsider", place("다른 장소")), ErrorCode.ROOM_ACCESS_DENIED);
         error(() -> service.participateRegardless(id, "outsider", true), ErrorCode.ROOM_ACCESS_DENIED);
         error(() -> appointments.create(roomId, "outsider", both()), ErrorCode.ROOM_ACCESS_DENIED);
@@ -176,7 +177,7 @@ class AppointmentVotingServiceTests {
     @Test
     void 확정된_약속은_투표_제안_신청을_변경할_수_없다() {
         String confirmed = appointments.create(roomId, USER, all()).id();
-        error(() -> service.voteTime(confirmed, USER, Set.of(0)), ErrorCode.NOT_COORDINATING);
+        error(() -> service.voteTime(confirmed, USER, Set.of("missing-candidate")), ErrorCode.NOT_COORDINATING);
         error(() -> service.votePlace(confirmed, USER, Set.of()), ErrorCode.NOT_COORDINATING);
         error(() -> service.addPlaceCandidate(confirmed, USER, place("다른 장소")), ErrorCode.NOT_COORDINATING);
         error(() -> service.participateRegardless(confirmed, USER, true), ErrorCode.NOT_COORDINATING);
@@ -195,7 +196,7 @@ class AppointmentVotingServiceTests {
     @Test
     void 같은_방의_다른_약속에_투표와_신청이_섞이지_않는다() {
         String otherId = appointments.create(roomId, USER, both()).id();
-        service.voteTime(id, USER, Set.of(0));
+        service.voteTime(id, USER, Set.of(candidateId(id, VoteType.TIME, 0)));
         service.addPlaceCandidate(id, USER, place("추가 장소"));
         var other = service.get(otherId, USER);
         assertThat(other.participantIds()).isEmpty();
@@ -215,29 +216,29 @@ class AppointmentVotingServiceTests {
     @Test
     void 동시_투표_교체는_서로_다른_요청의_선택을_합치지_않는다() throws Exception {
         parallel(List.of(
-                () -> service.votePlace(id, USER, Set.of(0)),
-                () -> service.votePlace(id, USER, Set.of(1))));
+                () -> service.votePlace(id, USER, Set.of(candidateId(id, VoteType.PLACE, 0))),
+                () -> service.votePlace(id, USER, Set.of(candidateId(id, VoteType.PLACE, 1)))));
         var result = service.get(id, USER);
         assertThat(result.placeOptions().stream().filter(AppointmentVotingResponse.PlaceOption::votedByMe)).hasSize(1);
         assertThat(result.participantIds()).containsExactly(USER);
     }
 
     @Test
-    void 동시_후보_추가는_기존_순서를_유지하고_서로_다른_인덱스를_받는다() throws Exception {
+    void 동시_후보_추가는_기존_순서를_유지하고_서로_다른_ID를_받는다() throws Exception {
         parallel(List.of(
                 () -> service.addPlaceCandidate(id, USER, place("추가 A")),
                 () -> service.addPlaceCandidate(id, OTHER, place("추가 B"))));
         var result = service.get(id, USER);
         assertThat(result.placeOptions()).extracting(option -> option.place().name())
                 .startsWith("성수 카페거리", "서울숲").contains("추가 A", "추가 B");
-        assertThat(result.placeOptions()).extracting(AppointmentVotingResponse.PlaceOption::index).containsExactly(0, 1, 2, 3);
+        assertThat(result.placeOptions()).extracting(AppointmentVotingResponse.PlaceOption::candidateId).hasSize(4).doesNotHaveDuplicates().doesNotContainNull();
     }
 
     @Test
     void 상관없이_참여와_후보_투표가_겹쳐도_둘이_동시에_남지_않는다() throws Exception {
         parallel(List.of(
                 () -> service.participateRegardless(id, USER, true),
-                () -> service.voteTime(id, USER, Set.of(0))));
+                () -> service.voteTime(id, USER, Set.of(candidateId(id, VoteType.TIME, 0)))));
         var result = service.get(id, USER);
         assertThat(result.participantIds()).containsExactly(USER);
         assertThat(result.participatingRegardless() ^ result.timeOptions().get(0).votedByMe()).isTrue();
@@ -245,7 +246,7 @@ class AppointmentVotingServiceTests {
 
     @Test
     void 시간_후보_추가는_기존_순서와_투표를_보존하고_자동_신청하지_않는다() {
-        service.voteTime(id, OTHER, Set.of(0));
+        service.voteTime(id, OTHER, Set.of(candidateId(id, VoteType.TIME, 0)));
         var before = service.get(id, USER);
         var time = future(5);
         var added = service.addTimeCandidate(id, USER, new TimeCandidateRequest(time));
@@ -256,7 +257,7 @@ class AppointmentVotingServiceTests {
         assertThat(added.timeOptions().get(2).time().toInstant()).isEqualTo(time.toInstant());
         assertThat(added.timeOptions().get(2).time().getOffset()).isEqualTo(ZoneOffset.ofHours(9));
         assertThat(added.timeOptions().get(2).voteCount()).isZero();
-        assertThat(service.voteTime(id, USER, Set.of(2)).timeOptions().get(2).votedByMe()).isTrue();
+        assertThat(service.voteTime(id, USER, Set.of(candidateId(id, VoteType.TIME, 2))).timeOptions().get(2).votedByMe()).isTrue();
     }
 
     @Test
@@ -305,8 +306,8 @@ class AppointmentVotingServiceTests {
                 () -> service.addTimeCandidate(id, USER, first),
                 () -> service.addTimeCandidate(id, OTHER, second)));
         var result = service.get(id, USER);
-        assertThat(result.timeOptions()).extracting(AppointmentVotingResponse.TimeOption::index)
-                .containsExactly(0, 1, 2, 3);
+        assertThat(result.timeOptions()).extracting(AppointmentVotingResponse.TimeOption::candidateId)
+                .hasSize(4).doesNotHaveDuplicates().doesNotContainNull();
         assertThat(result.timeOptions().subList(2, 4)).extracting(option -> option.time().toInstant())
                 .containsExactlyInAnyOrder(first.time().toInstant(), second.time().toInstant());
         assertThat(result.participantIds()).isEmpty();
@@ -315,9 +316,9 @@ class AppointmentVotingServiceTests {
     @Test
     void votingCreatesMemberAndLastCancellationRemovesMember() {
         assertThat(members.existsByAppointmentIdAndUserId(id, OTHER)).isFalse();
-        service.voteTime(id, OTHER, Set.of(0));
+        service.voteTime(id, OTHER, Set.of(candidateId(id, VoteType.TIME, 0)));
         assertThat(appointments.get(OTHER, id).members()).extracting(member -> member.userId()).contains(OTHER);
-        service.votePlace(id, OTHER, Set.of(0));
+        service.votePlace(id, OTHER, Set.of(candidateId(id, VoteType.PLACE, 0)));
         service.voteTime(id, OTHER, Set.of());
         assertThat(members.existsByAppointmentIdAndUserId(id, OTHER)).isTrue();
         service.votePlace(id, OTHER, Set.of());
@@ -342,8 +343,8 @@ class AppointmentVotingServiceTests {
     void allParticipationExitPathsRemoveOnlyTargetData() {
         for (int exit = 0; exit < 4; exit++) {
             String appointmentId = appointments.create(roomId, USER, both()).id();
-            service.voteTime(appointmentId, USER, Set.of(0));
-            service.voteTime(appointmentId, OTHER, Set.of(1));
+            service.voteTime(appointmentId, USER, Set.of(candidateId(appointmentId, VoteType.TIME, 0)));
+            service.voteTime(appointmentId, OTHER, Set.of(candidateId(appointmentId, VoteType.TIME, 1)));
             if (exit == 0) {
                 appointments.leave(OTHER, appointmentId);
             } else if (exit == 1) {
@@ -362,9 +363,9 @@ class AppointmentVotingServiceTests {
 
     @Test
     void concurrentLeaveAndVoteKeepMemberAndVoteConsistent() throws Exception {
-        service.voteTime(id, OTHER, Set.of(0));
+        service.voteTime(id, OTHER, Set.of(candidateId(id, VoteType.TIME, 0)));
         parallel(List.of(
-                () -> service.votePlace(id, OTHER, Set.of(0)),
+                () -> service.votePlace(id, OTHER, Set.of(candidateId(id, VoteType.PLACE, 0))),
                 () -> {
                     appointments.leave(OTHER, id);
                     return service.get(id, USER);
@@ -374,19 +375,19 @@ class AppointmentVotingServiceTests {
     }
     @Test
     void independentConfirmationUsesHostSelectionRegardlessOfVoteCounts() {
-        service.voteTime(id, USER, Set.of(1));
-        service.voteTime(id, OTHER, Set.of(1));
-        var time = appointments.confirmOption(USER, id, VoteType.TIME, 0);
-        assertThat(time.confirmedTime()).isEqualTo(time.candidatesTime().get(0));
-        assertThat(time.status()).isEqualTo(com.gamgam.backend.appointment.vo.AppointmentStatus.COORDINATING);
+        service.voteTime(id, USER, Set.of(candidateId(id, VoteType.TIME, 1)));
+        service.voteTime(id, OTHER, Set.of(candidateId(id, VoteType.TIME, 1)));
+        var time = appointments.confirmOption(USER, id, VoteType.TIME, candidateId(id, VoteType.TIME, 0));
+        assertThat(time.confirmedTime()).isEqualTo(time.candidatesTime().get(0).time());
+        assertThat(time.status()).isEqualTo(AppointmentStatus.COORDINATING);
         error(() -> service.voteTime(id, OTHER, Set.of()), ErrorCode.VOTE_NOT_ALLOWED);
         error(() -> service.addTimeCandidate(id, USER, new TimeCandidateRequest(future(8))), ErrorCode.VOTE_NOT_ALLOWED);
         error(() -> service.participateRegardless(id, OTHER, true), ErrorCode.VOTE_NOT_ALLOWED);
-        error(() -> appointments.confirmOption(USER, id, com.gamgam.backend.appointment.vo.VoteType.TIME, 0), ErrorCode.VOTE_NOT_ALLOWED);
-        service.votePlace(id, OTHER, Set.of(1));
-        var place = appointments.confirmOption(USER, id, com.gamgam.backend.appointment.vo.VoteType.PLACE, 0);
-        assertThat(place.confirmedPlace()).isEqualTo(place.candidatesPlace().get(0));
-        assertThat(place.status()).isEqualTo(com.gamgam.backend.appointment.vo.AppointmentStatus.CONFIRMED);
+        error(() -> appointments.confirmOption(USER, id, VoteType.TIME, candidateId(id, VoteType.TIME, 0)), ErrorCode.VOTE_NOT_ALLOWED);
+        service.votePlace(id, OTHER, Set.of(candidateId(id, VoteType.PLACE, 1)));
+        var place = appointments.confirmOption(USER, id, VoteType.PLACE, candidateId(id, VoteType.PLACE, 0));
+        assertThat(place.confirmedPlace()).isEqualTo(place.candidatesPlace().get(0).place());
+        assertThat(place.status()).isEqualTo(AppointmentStatus.CONFIRMED);
     }
 
     @Test
@@ -394,8 +395,8 @@ class AppointmentVotingServiceTests {
         for (VoteType type : VoteType.values()) {
             error(() -> appointments.confirmOption(USER, id, type, null), ErrorCode.INVALID_VOTE_OPTION);
         }
-        service.voteTime(id, USER, Set.of(1));
-        service.votePlace(id, USER, Set.of(1));
+        service.voteTime(id, USER, Set.of(candidateId(id, VoteType.TIME, 1)));
+        service.votePlace(id, USER, Set.of(candidateId(id, VoteType.PLACE, 1)));
         for (VoteType type : VoteType.values()) {
             error(() -> appointments.confirmOption(USER, id, type, null), ErrorCode.INVALID_VOTE_OPTION);
         }
@@ -407,7 +408,7 @@ class AppointmentVotingServiceTests {
     void appointmentBecomesConfirmedAfterBothOptionsInEitherOrder() {
         for (VoteType type : VoteType.values()) {
             String created = appointments.create(roomId, USER, both()).id();
-            var partial = appointments.confirmOption(USER, created, type, 1);
+            var partial = appointments.confirmOption(USER, created, type, candidateId(created, type, 1));
             assertThat(partial.status()).isEqualTo(AppointmentStatus.COORDINATING);
             assertThat(appointments.get(USER, created).status()).isEqualTo(AppointmentStatus.COORDINATING);
             VoteType remaining;
@@ -420,15 +421,15 @@ class AppointmentVotingServiceTests {
             }
             error(() -> appointments.confirmOption(USER, created, remaining, null), ErrorCode.INVALID_VOTE_OPTION);
             assertThat(appointments.get(USER, created).status()).isEqualTo(AppointmentStatus.COORDINATING);
-            appointments.confirmOption(USER, created, remaining, 0);
+            appointments.confirmOption(USER, created, remaining, candidateId(created, remaining, 0));
             var result = appointments.get(USER, created);
             assertThat(result.status()).isEqualTo(AppointmentStatus.CONFIRMED);
             if (type == VoteType.TIME) {
                 assertThat(result.confirmedTime()).isEqualTo(partial.confirmedTime());
-                assertThat(result.confirmedPlace()).isEqualTo(result.candidatesPlace().get(0));
+                assertThat(result.confirmedPlace()).isEqualTo(result.candidatesPlace().get(0).place());
             } else {
                 assertThat(result.confirmedPlace()).isEqualTo(partial.confirmedPlace());
-                assertThat(result.confirmedTime()).isEqualTo(result.candidatesTime().get(0));
+                assertThat(result.confirmedTime()).isEqualTo(result.candidatesTime().get(0).time());
             }
         }
     }
@@ -436,23 +437,90 @@ class AppointmentVotingServiceTests {
     @Test
     void confirmingOnlyCoordinatedOptionCompletesAppointment() {
         String timeId = appointments.create(roomId, USER, timeOnly()).id();
-        var time = appointments.confirmOption(USER, timeId, VoteType.TIME, 1);
-        assertThat(time.confirmedTime()).isEqualTo(time.candidatesTime().get(1));
+        var time = appointments.confirmOption(USER, timeId, VoteType.TIME, candidateId(timeId, VoteType.TIME, 1));
+        assertThat(time.confirmedTime()).isEqualTo(time.candidatesTime().get(1).time());
         assertThat(appointments.get(USER, timeId).status()).isEqualTo(AppointmentStatus.CONFIRMED);
         String placeId = appointments.create(roomId, USER, placeOnly()).id();
-        var place = appointments.confirmOption(USER, placeId, VoteType.PLACE, 1);
-        assertThat(place.confirmedPlace()).isEqualTo(place.candidatesPlace().get(1));
+        var place = appointments.confirmOption(USER, placeId, VoteType.PLACE, candidateId(placeId, VoteType.PLACE, 1));
+        assertThat(place.confirmedPlace()).isEqualTo(place.candidatesPlace().get(1).place());
         assertThat(appointments.get(USER, placeId).status()).isEqualTo(AppointmentStatus.CONFIRMED);
     }
 
     @Test
-    void confirmationRejectsNonHostAndInvalidIndex() {
-        service.voteTime(id, OTHER, Set.of(0));
-        error(() -> appointments.confirmOption(OTHER, id, com.gamgam.backend.appointment.vo.VoteType.TIME, 0),
+    void confirmationRejectsNonHostAndInvalidCandidateId() {
+        service.voteTime(id, OTHER, Set.of(candidateId(id, VoteType.TIME, 0)));
+        error(() -> appointments.confirmOption(OTHER, id, VoteType.TIME, candidateId(id, VoteType.TIME, 0)),
                 ErrorCode.APPOINTMENT_HOST_ONLY);
-        error(() -> appointments.confirmOption(USER, id, com.gamgam.backend.appointment.vo.VoteType.TIME, 99),
+        error(() -> appointments.confirmOption(USER, id, VoteType.TIME, "missing-candidate"),
                 ErrorCode.INVALID_VOTE_OPTION);
         assertThat(appointments.get(USER, id).confirmedTime()).isNull();
+    }
+    @Test
+    void candidateIdsAndVotesSurviveReloadRemovalAndReordering() {
+        var original = appointments.get(USER, id);
+        String timeId = original.candidatesTime().get(0).candidateId();
+        String placeId = original.candidatesPlace().get(0).candidateId();
+        service.voteTime(id, OTHER, Set.of(timeId));
+        service.votePlace(id, OTHER, Set.of(placeId));
+        service.addTimeCandidate(id, USER, new TimeCandidateRequest(future(8)));
+        service.addPlaceCandidate(id, USER, place("Third place"));
+
+        // Simulate a future removal/reordering without introducing a public mutation API.
+        new TransactionTemplate(transactionManager).executeWithoutResult(status -> {
+            var appointment = appointmentRepository.findByIdForUpdate(id).orElseThrow();
+            appointment.getCandidatesTime().remove(1);
+            appointment.getCandidatesPlace().remove(1);
+            java.util.Collections.reverse(appointment.getCandidatesTime());
+            java.util.Collections.reverse(appointment.getCandidatesPlace());
+        });
+
+        var reloaded = service.get(id, OTHER);
+        assertThat(reloaded.timeOptions().get(1).candidateId()).isEqualTo(timeId);
+        assertThat(reloaded.placeOptions().get(1).candidateId()).isEqualTo(placeId);
+        assertThat(reloaded.timeOptions().get(1).voterIds()).containsExactly(OTHER);
+        assertThat(reloaded.placeOptions().get(1).voterIds()).containsExactly(OTHER);
+        assertThat(reloaded.timeOptions().get(0).voteCount()).isZero();
+        assertThat(reloaded.placeOptions().get(0).voteCount()).isZero();
+        assertThat(appointments.get(USER, id).timeVotes().get(timeId)).containsExactly(OTHER);
+        assertThat(appointments.get(USER, id).placeVotes().get(placeId)).containsExactly(OTHER);
+        appointments.confirmOption(USER, id, VoteType.TIME, timeId);
+        var confirmed = appointments.confirmOption(USER, id, VoteType.PLACE, placeId);
+        assertThat(confirmed.confirmedTime()).isEqualTo(original.candidatesTime().get(0).time());
+        assertThat(confirmed.confirmedPlace()).isEqualTo(original.candidatesPlace().get(0).place());
+        assertThat(confirmed.status()).isEqualTo(AppointmentStatus.CONFIRMED);
+    }
+
+    @Test
+    void foreignAndWrongTypeCandidateIdsCannotReplaceVotesOrConfirm() {
+        var other = appointments.create(roomId, USER, both());
+        for (VoteType type : VoteType.values()) {
+            String valid = candidateId(id, type, 0);
+            String wrongType = candidateId(id, type == VoteType.TIME ? VoteType.PLACE : VoteType.TIME, 0);
+            String foreign = candidateId(other.id(), type, 0);
+            if (type == VoteType.TIME) service.voteTime(id, OTHER, Set.of(valid));
+            else service.votePlace(id, OTHER, Set.of(valid));
+
+            for (String invalid : List.of(wrongType, foreign, UUID.randomUUID().toString(), " ")) {
+                if (type == VoteType.TIME) {
+                    error(() -> service.voteTime(id, OTHER, Set.of(valid, invalid)), ErrorCode.INVALID_OPTION);
+                } else {
+                    error(() -> service.votePlace(id, OTHER, Set.of(valid, invalid)), ErrorCode.INVALID_OPTION);
+                }
+                error(() -> appointments.confirmOption(USER, id, type, invalid), ErrorCode.INVALID_VOTE_OPTION);
+            }
+            var result = appointments.get(USER, id);
+            assertThat(type == VoteType.TIME ? result.timeVotes() : result.placeVotes())
+                    .containsOnlyKeys(valid);
+            assertThat(members.existsByAppointmentIdAndUserId(id, OTHER)).isTrue();
+            assertThat(result.confirmedTime()).isNull();
+            assertThat(result.confirmedPlace()).isNull();
+        }
+    }
+
+    private String candidateId(String appointmentId, VoteType type, int position) {
+        var appointment = appointments.get(USER, appointmentId);
+        return type == VoteType.TIME ? appointment.candidatesTime().get(position).candidateId()
+                : appointment.candidatesPlace().get(position).candidateId();
     }
     private static void error(ThrowingCallable action, ErrorCode expected) {
         assertThatThrownBy(action).isInstanceOfSatisfying(BusinessException.class,
