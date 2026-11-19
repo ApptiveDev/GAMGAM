@@ -3,8 +3,11 @@ package com.gamgam.backend.api.v1;
 import com.gamgam.backend.appointment.dto.AppointmentResponse;
 import com.gamgam.backend.appointment.dto.CreateAppointmentRequest;
 import com.gamgam.backend.appointment.dto.JoinAppointmentRequest;
-import com.gamgam.backend.appointment.dto.ConfirmAppointmentRequest;
-import com.gamgam.backend.appointment.dto.AddTimeOptionRequest;
+import com.gamgam.backend.appointment.dto.ConfirmOptionRequest;
+import com.gamgam.backend.appointment.vo.VoteType;
+import com.gamgam.backend.appointment.dto.RenameAppointmentRequest;
+import org.springframework.web.bind.annotation.PatchMapping;
+
 import com.gamgam.backend.appointment.service.AppointmentService;
 import com.gamgam.backend.auth.security.AuthInterceptor;
 import com.gamgam.backend.global.response.ApiResponse;
@@ -36,6 +39,14 @@ public class AppointmentController {
             @Valid @RequestBody CreateAppointmentRequest request) {
         return ResponseEntity.status(HttpStatus.CREATED)
                 .body(ApiResponse.ok(service.create(roomId, userId, request)));
+    }
+
+    @PatchMapping("/appointments/{id}")
+    public ApiResponse<AppointmentResponse> rename(
+            @RequestAttribute(AuthInterceptor.USER_ID_ATTRIBUTE) String userId,
+            @PathVariable String id,
+            @Valid @RequestBody RenameAppointmentRequest request) {
+        return ApiResponse.ok(service.rename(userId, id, request.name()));
     }
 
     @GetMapping("/appointments")
@@ -82,43 +93,20 @@ public class AppointmentController {
         return ApiResponse.ok(null);
     }
 
-    @PostMapping("/appointments/{id}/votes/time/{optionIndex}")
-    public ApiResponse<AppointmentResponse> toggleTimeVote(
+    @PostMapping("/appointments/{id}/confirm/time")
+    public ApiResponse<AppointmentResponse> confirmTime(
             @RequestAttribute(AuthInterceptor.USER_ID_ATTRIBUTE) String userId,
             @PathVariable String id,
-            @PathVariable int optionIndex) {
-        return ApiResponse.ok(service.toggleTimeVote(userId, id, optionIndex));
+            @Valid @RequestBody ConfirmOptionRequest request) {
+        return ApiResponse.ok(service.confirmOption(userId, id, VoteType.TIME, request.candidateId()));
     }
 
-    @PutMapping("/appointments/{id}/votes/place/{optionIndex}")
-    public ApiResponse<AppointmentResponse> votePlace(
+    @PostMapping("/appointments/{id}/confirm/place")
+    public ApiResponse<AppointmentResponse> confirmPlace(
             @RequestAttribute(AuthInterceptor.USER_ID_ATTRIBUTE) String userId,
             @PathVariable String id,
-            @PathVariable int optionIndex) {
-        return ApiResponse.ok(service.votePlace(userId, id, optionIndex));
-    }
-
-    @DeleteMapping("/appointments/{id}/votes/place")
-    public ApiResponse<AppointmentResponse> clearPlaceVote(
-            @RequestAttribute(AuthInterceptor.USER_ID_ATTRIBUTE) String userId,
-            @PathVariable String id) {
-        return ApiResponse.ok(service.clearPlaceVote(userId, id));
-    }
-
-    @PostMapping("/appointments/{id}/confirm")
-    public ApiResponse<AppointmentResponse> confirm(
-            @RequestAttribute(AuthInterceptor.USER_ID_ATTRIBUTE) String userId,
-            @PathVariable String id,
-            @Valid @RequestBody ConfirmAppointmentRequest request) {
-        return ApiResponse.ok(service.confirm(userId, id, request));
-    }
-
-    @PostMapping("/appointments/{id}/options/time")
-    public ApiResponse<AppointmentResponse> addTimeOption(
-            @RequestAttribute(AuthInterceptor.USER_ID_ATTRIBUTE) String userId,
-            @PathVariable String id,
-            @Valid @RequestBody AddTimeOptionRequest request) {
-        return ApiResponse.ok(service.addTimeOption(userId, id, request.time()));
+            @Valid @RequestBody ConfirmOptionRequest request) {
+        return ApiResponse.ok(service.confirmOption(userId, id, VoteType.PLACE, request.candidateId()));
     }
 
     @PutMapping("/appointments/{id}/penalty")
@@ -127,13 +115,6 @@ public class AppointmentController {
             @PathVariable String id,
             @Valid @RequestBody CreateAppointmentRequest.PenaltyRequest request) {
         return ApiResponse.ok(service.setPenalty(userId, id, request));
-    }
-
-    @PostMapping("/appointments/{id}/penalty/agreement")
-    public ApiResponse<AppointmentResponse> togglePenaltyAgreement(
-            @RequestAttribute(AuthInterceptor.USER_ID_ATTRIBUTE) String userId,
-            @PathVariable String id) {
-        return ApiResponse.ok(service.togglePenaltyAgreement(userId, id));
     }
 
     @PostMapping("/appointments/{id}/complete")

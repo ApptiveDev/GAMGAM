@@ -2,18 +2,15 @@ package com.gamgam.backend.appointment.service;
 
 import com.gamgam.backend.appointment.dto.AppointmentMemberResponse;
 import com.gamgam.backend.appointment.dto.AppointmentResponse;
-import com.gamgam.backend.appointment.dto.ConfirmAppointmentRequest;
 import com.gamgam.backend.appointment.dto.CreateAppointmentRequest;
 import com.gamgam.backend.appointment.entity.Appointment;
 import com.gamgam.backend.appointment.entity.AppointmentMember;
-import com.gamgam.backend.appointment.entity.AppointmentPlaceVote;
-import com.gamgam.backend.appointment.entity.AppointmentTimeVote;
+import com.gamgam.backend.appointment.vo.VoteType;
+
 import com.gamgam.backend.appointment.repository.AppointmentMemberRepository;
-import com.gamgam.backend.appointment.repository.AppointmentPlaceVoteRepository;
+import com.gamgam.backend.appointment.repository.AppointmentVoteRepository;
 import com.gamgam.backend.appointment.repository.AppointmentRepository;
-import com.gamgam.backend.appointment.repository.AppointmentTimeVoteRepository;
-import com.gamgam.backend.appointment.repository.PenaltyAgreementRepository;
-import com.gamgam.backend.appointment.entity.PenaltyAgreement;
+
 import com.gamgam.backend.appointment.vo.AppointmentMemberRole;
 import com.gamgam.backend.appointment.vo.AppointmentStatus;
 import com.gamgam.backend.appointment.vo.AppointmentTemplate;
@@ -44,12 +41,12 @@ public class AppointmentService {
 
     private final AppointmentRepository repository;
     private final AppointmentMemberRepository memberRepository;
-    private final AppointmentTimeVoteRepository timeVoteRepository;
-    private final AppointmentPlaceVoteRepository placeVoteRepository;
-    private final PenaltyAgreementRepository penaltyAgreementRepository;
+    private final AppointmentVoteRepository voteRepository;
+
     private final UserRepository userRepository;
     private final ShareLinkGenerator shareLinkGenerator;
     private final RoomAccess rooms;
+    private final AppointmentParticipationService participation;
 
     @Transactional
     public AppointmentResponse create(String roomId, String userId, CreateAppointmentRequest request) {
@@ -87,7 +84,8 @@ public class AppointmentService {
     }
 
     public AppointmentResponse get(String userId, String id) {
-        Appointment appointment = findAccessible(userId, id);
+        Appointment appointment = repository.findById(id)
+                .orElseThrow(() -> new BusinessException(ErrorCode.APPOINTMENT_NOT_FOUND));
         rooms.requireMember(appointment.getRoomId(), userId);
         return toResponse(appointment);
     }
@@ -98,13 +96,15 @@ public class AppointmentService {
 
     public List<AppointmentResponse> list(String roomId, String userId) {
         rooms.requireMember(roomId, userId);
-        return repository.findAllForUserInRoom(roomId, userId).stream().map(this::toResponse).toList();
+        return repository.findByRoomIdOrderByCreatedAtDesc(roomId).stream().map(this::toResponse).toList();
     }
 
     @Transactional
     public AppointmentResponse join(String userId, String inviteCode) {
         Appointment appointment = repository.findByInviteCode(inviteCode.trim().toUpperCase(Locale.ROOT))
                 .orElseThrow(() -> new BusinessException(ErrorCode.INVALID_INVITE_CODE));
+        appointment = repository.findByIdForUpdate(appointment.getId())
+                .orElseThrow(() -> new BusinessException(ErrorCode.APPOINTMENT_NOT_FOUND));
         if (memberRepository.existsByAppointmentIdAndUserId(appointment.getId(), userId)) {
             throw new BusinessException(ErrorCode.ALREADY_JOINED);
         }
@@ -136,84 +136,37 @@ public class AppointmentService {
     }
 
     @Transactional
-    public AppointmentResponse toggleTimeVote(String userId, String appointmentId, int optionIndex) {
-        Appointment appointment = findAccessible(userId, appointmentId);
-        requireCoordinating(appointment);
-        validateIndex(optionIndex, appointment.getCandidatesTime().size());
-        timeVoteRepository.findByAppointmentIdAndUserIdAndOptionIndex(appointmentId, userId, optionIndex)
-                .ifPresentOrElse(timeVoteRepository::delete,
-                        () -> timeVoteRepository.save(new AppointmentTimeVote(appointmentId, userId, optionIndex)));
-        return toResponse(appointment);
-    }
-
-    @Transactional
-    public AppointmentResponse votePlace(String userId, String appointmentId, int optionIndex) {
-        Appointment appointment = findAccessible(userId, appointmentId);
-        requireCoordinating(appointment);
-        validateIndex(optionIndex, appointment.getCandidatesPlace().size());
-        placeVoteRepository.findByAppointmentIdAndUserId(appointmentId, userId)
-                .ifPresent(placeVoteRepository::delete);
-        placeVoteRepository.flush();
-        placeVoteRepository.save(new AppointmentPlaceVote(appointmentId, userId, optionIndex));
-        return toResponse(appointment);
-    }
-
-    @Transactional
-    public AppointmentResponse clearPlaceVote(String userId, String appointmentId) {
-        Appointment appointment = findAccessible(userId, appointmentId);
-        requireCoordinating(appointment);
-        placeVoteRepository.deleteAllByAppointmentIdAndUserId(appointmentId, userId);
-        return toResponse(appointment);
-    }
-
-    @Transactional
-    public AppointmentResponse confirm(String userId, String appointmentId, ConfirmAppointmentRequest request) {
-        Appointment appointment = findAccessible(userId, appointmentId);
+    public AppointmentResponse confirmOption(String userId, String id, VoteType type, String candidateId) {
+        Appointment appointment = findAccessible(userId, id);
+        rooms.requireMember(appointment.getRoomId(), userId);
         requireHost(appointment, userId);
         requireCoordinating(appointment);
-        Integer timeIndex = request.timeOptionIndex();
-        Integer placeIndex = request.placeOptionIndex();
-        if (appointment.getTemplate().coordinatesTime()) {
-            validateNullableIndex(timeIndex, appointment.getCandidatesTime().size());
-        }
-        if (appointment.getTemplate().coordinatesPlace()) {
-            validateNullableIndex(placeIndex, appointment.getCandidatesPlace().size());
-        }
-        appointment.confirm(timeIndex, placeIndex);
+        confirmOption(appointment, type, candidateId);
         return toResponse(appointment);
     }
 
-    @Transactional
-    public AppointmentResponse addTimeOption(String userId, String appointmentId, java.time.OffsetDateTime time) {
-        Appointment appointment = findAccessible(userId, appointmentId);
-        requireCoordinating(appointment);
-        if (!appointment.getTemplate().coordinatesTime()) {
-            throw new BusinessException(ErrorCode.BAD_REQUEST);
+    private void confirmOption(Appointment appointment, VoteType type, String candidateId) {
+        boolean time = type == VoteType.TIME;
+        if (time && (!appointment.getTemplate().coordinatesTime() || appointment.getConfirmedTime() != null)
+                || !time && (!appointment.getTemplate().coordinatesPlace() || appointment.getConfirmedPlace() != null)) {
+            throw new BusinessException(ErrorCode.VOTE_NOT_ALLOWED);
         }
-        appointment.addCandidateTime(KstTimeConverter.toUtc(time));
-        return toResponse(appointment);
+        int size = appointment.getCandidatesTime().size();
+        if (!time) size = appointment.getCandidatesPlace().size();
+        if (size == 0) throw new BusinessException(ErrorCode.INVALID_OPTION);
+        if (candidateId == null || candidateId.isBlank()) {
+            throw new BusinessException(ErrorCode.INVALID_VOTE_OPTION);
+        }
+        if (time) appointment.confirmTime(candidateId);
+        else appointment.confirmPlace(candidateId);
     }
-
     @Transactional
     public AppointmentResponse setPenalty(String userId, String appointmentId,
                                           CreateAppointmentRequest.PenaltyRequest request) {
         Appointment appointment = findAccessible(userId, appointmentId);
         requireHost(appointment, userId);
+        requireCoordinating(appointment);
         appointment.updatePenalty(request.toDomain());
-        penaltyAgreementRepository.deleteAllByAppointmentIdAndUserId(appointmentId, userId);
-        penaltyAgreementRepository.save(new PenaltyAgreement(appointmentId, userId));
-        return toResponse(appointment);
-    }
-
-    @Transactional
-    public AppointmentResponse togglePenaltyAgreement(String userId, String appointmentId) {
-        Appointment appointment = findAccessible(userId, appointmentId);
-        if (appointment.getPenalty() == null) {
-            throw new BusinessException(ErrorCode.BAD_REQUEST);
-        }
-        penaltyAgreementRepository.findByAppointmentIdAndUserId(appointmentId, userId)
-                .ifPresentOrElse(penaltyAgreementRepository::delete,
-                        () -> penaltyAgreementRepository.save(new PenaltyAgreement(appointmentId, userId)));
         return toResponse(appointment);
     }
 
@@ -228,21 +181,26 @@ public class AppointmentService {
         return toResponse(appointment);
     }
 
-    public boolean isMember(String appointmentId, String userId) {
-        return memberRepository.existsByAppointmentIdAndUserId(appointmentId, userId);
+    @Transactional
+    public AppointmentResponse rename(String userId, String appointmentId, String name) {
+        Appointment appointment = findAccessible(userId, appointmentId);
+        rooms.requireMember(appointment.getRoomId(), userId);
+        requireHost(appointment, userId);
+        if (name == null || name.isBlank() || name.strip().length() > 50) {
+            throw new BusinessException(ErrorCode.BAD_REQUEST);
+        }
+        appointment.rename(name.strip());
+        return toResponse(appointment);
     }
 
     private void removeMemberData(String appointmentId, String userId) {
         AppointmentMember member = memberRepository.findByAppointmentIdAndUserId(appointmentId, userId)
                 .orElseThrow(() -> new BusinessException(ErrorCode.MEMBER_NOT_FOUND));
-        timeVoteRepository.deleteAllByAppointmentIdAndUserId(appointmentId, userId);
-        placeVoteRepository.deleteAllByAppointmentIdAndUserId(appointmentId, userId);
-        penaltyAgreementRepository.deleteAllByAppointmentIdAndUserId(appointmentId, userId);
-        memberRepository.delete(member);
+        participation.remove(member);
     }
 
     private Appointment findAccessible(String userId, String id) {
-        Appointment appointment = repository.findById(id)
+        Appointment appointment = repository.findByIdForUpdate(id)
                 .orElseThrow(() -> new BusinessException(ErrorCode.APPOINTMENT_NOT_FOUND));
         if (!memberRepository.existsByAppointmentIdAndUserId(id, userId)) {
             throw new BusinessException(ErrorCode.APPOINTMENT_ACCESS_DENIED);
@@ -267,18 +225,6 @@ public class AppointmentService {
         }
     }
 
-    private static void validateNullableIndex(Integer index, int size) {
-        if (index == null) {
-            throw new BusinessException(ErrorCode.INVALID_VOTE_OPTION);
-        }
-        validateIndex(index, size);
-    }
-
-    private static void validateIndex(int index, int size) {
-        if (index < 0 || index >= size) {
-            throw new BusinessException(ErrorCode.INVALID_VOTE_OPTION);
-        }
-    }
 
     private String generateInviteCode() {
         String code;
@@ -292,16 +238,15 @@ public class AppointmentService {
         List<AppointmentMemberResponse> members = memberRepository
                 .findAllByAppointmentIdOrderByJoinedAtAsc(appointment.getId()).stream()
                 .map(AppointmentMemberResponse::from).toList();
-        Map<Integer, List<String>> timeVotes = new LinkedHashMap<>();
-        timeVoteRepository.findAllByAppointmentId(appointment.getId()).forEach(vote ->
-                timeVotes.computeIfAbsent(vote.getOptionIndex(), ignored -> new ArrayList<>()).add(vote.getUserId()));
-        Map<Integer, List<String>> placeVotes = new LinkedHashMap<>();
-        placeVoteRepository.findAllByAppointmentId(appointment.getId()).forEach(vote ->
-                placeVotes.computeIfAbsent(vote.getOptionIndex(), ignored -> new ArrayList<>()).add(vote.getUserId()));
-        List<String> agreements = penaltyAgreementRepository.findAllByAppointmentId(appointment.getId()).stream()
-                .map(PenaltyAgreement::getUserId).toList();
+        var allVotes = voteRepository.findByAppointmentIdOrderByIdAsc(appointment.getId());
+        Map<String, List<String>> timeVotes = new LinkedHashMap<>();
+        allVotes.stream().filter(vote -> vote.getType() == VoteType.TIME).forEach(vote ->
+                timeVotes.computeIfAbsent(vote.getCandidateId(), ignored -> new ArrayList<>()).add(vote.getUserId()));
+        Map<String, List<String>> placeVotes = new LinkedHashMap<>();
+        allVotes.stream().filter(vote -> vote.getType() == VoteType.PLACE).forEach(vote ->
+                placeVotes.computeIfAbsent(vote.getCandidateId(), ignored -> new ArrayList<>()).add(vote.getUserId()));
         return AppointmentResponse.of(appointment, shareLinkGenerator.create(appointment.getInviteCode()),
-                members, timeVotes, placeVotes, agreements);
+                members, timeVotes, placeVotes);
     }
 
     private static List<Place> toDomainPlaces(List<CreateAppointmentRequest.PlaceRequest> requests) {

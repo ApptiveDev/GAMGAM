@@ -10,7 +10,7 @@ import lombok.NoArgsConstructor;
 @Getter
 @NoArgsConstructor(access = AccessLevel.PROTECTED)
 @Table(name = "appointment_votes", uniqueConstraints = @UniqueConstraint(
-        columnNames = {"appointment_id", "user_id", "vote_type", "option_index"}))
+        columnNames = {"appointment_id", "user_id", "vote_type", "candidate_id"}))
 public class AppointmentVote {
     @Id @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
@@ -26,13 +26,13 @@ public class AppointmentVote {
     @Column(name = "vote_type", nullable = false, length = 10)
     private VoteType type;
 
-    @Column(name = "option_index", nullable = false)
-    private int optionIndex;
+    @Column(name = "candidate_id", nullable = false, length = 36)
+    private String candidateId;
 
-    public AppointmentVote(Appointment appointment, String userId, VoteType type, int optionIndex) {
+    public AppointmentVote(Appointment appointment, String userId, VoteType type, String candidateId) {
         this.appointment = appointment;
         this.userId = userId;
         this.type = type;
-        this.optionIndex = optionIndex;
+        this.candidateId = candidateId;
     }
 }

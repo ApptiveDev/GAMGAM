@@ -1,6 +1,6 @@
 package com.gamgam.backend.appointment.vo;
 
 public enum PenaltyTarget {
-    // 가장 늦은 사람만 벌칙, 늦은 사람 전체 벌칙
-    LATEST_ONLY, ALL_LATE
+    // 지각 기준에 해당하는 사람 전원에게 적용
+    ALL_LATE
 }
