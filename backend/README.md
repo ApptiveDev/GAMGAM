@@ -117,24 +117,26 @@ Java 21, Spring Boot 4.1.1, Spring Web MVC, Bean Validation, Spring Data JPA를 
 | `timeOptions` | `index`, `time`, `voteCount`, `voterIds`, `votedByMe` |
 | `placeOptions` | `index`, `place`, `voteCount`, `voterIds`, `votedByMe` |
 
+후보의 득표순 표시는 프론트에서 `voteCount` 내림차순으로 정렬합니다. 동률은 `index` 오름차순으로 표시하며, 투표·확정 요청에는 화면상의 순서가 아닌 후보의 원래 `index`를 사용합니다. 백엔드는 후보 등록 순서로 반환합니다.
+
 이전 `POST /votes/time/{index}`, `PUT /votes/place/{index}`, `DELETE /votes/place`, `POST /options/time` 경로는 제거되었습니다. 취소도 현재 PUT API의 빈 배열로 처리합니다.
 
 ## 약속 확정과 완료
 
-약속 방장이 확정 API를 호출합니다. 투표 수가 변하는 것만으로 자동 확정되지는 않습니다.
+약속 생성자(`HOST`)가 시간과 장소의 후보를 각각 최종 선택해 확정합니다. 득표수와 관계없이 후보를 선택할 수 있습니다.
 
 | Method | Path | 요청과 동작 |
 | --- | --- | --- |
-| POST | `/api/v1/appointments/{id}/confirm/time` | 시간 확정. 본문 생략 또는 `{}`이면 최다 득표, `{"optionIndex":1}`이면 방장 선택 |
-| POST | `/api/v1/appointments/{id}/confirm/place` | 장소 확정. 본문 생략 또는 `{}`이면 최다 득표, `{"optionIndex":0}`이면 방장 선택 |
-| POST | `/api/v1/appointments/{id}/confirm` | 남은 조율 항목을 함께 확정. `{}` 또는 `{"timeOptionIndex":1,"placeOptionIndex":0}` |
+| POST | `/api/v1/appointments/{id}/confirm/time` | 시간 확정. `{"optionIndex":1}` 필수 |
+| POST | `/api/v1/appointments/{id}/confirm/place` | 장소 확정. `{"optionIndex":0}` 필수 |
 | POST | `/api/v1/appointments/{id}/complete` | 방장이 `CONFIRMED` 약속을 `COMPLETED`로 변경 |
 
-- 인덱스 생략 또는 `null`은 최다 득표 후보를 선택합니다. 동률이면 가장 작은 인덱스, 모든 후보가 0표여도 첫 번째 후보를 선택합니다.
-- 인덱스를 지정하면 득표수와 관계없이 해당 후보로 확정합니다. 후보가 없거나 인덱스가 유효하지 않으면 거절합니다.
+- 요청 본문과 0 이상의 `optionIndex`는 필수입니다. 본문 생략, `{}`, `null`, 음수 또는 후보 범위 밖의 인덱스는 HTTP 400으로 거절합니다. 후보가 없는 경우에도 확정할 수 없습니다.
 - 개별 확정은 해당 방 멤버인 약속 방장만 호출할 수 있습니다. 이미 확정한 항목은 재확정할 수 없습니다.
-- 전체 확정 API는 아직 확정하지 않은 조율 항목을 처리합니다. 본문은 필수이며 자동 선택 시 `{}`를 보냅니다.
+- 일괄 확정 API(`/api/v1/appointments/{id}/confirm`)는 제거했습니다.
 - 시간과 장소가 모두 정해지면 `CONFIRMED`가 됩니다. 일부만 정해졌다면 `COORDINATING`을 유지하며 남은 항목을 계속 투표할 수 있습니다.
+- 시간·장소의 확정 순서는 자유입니다. `TIME_ONLY`·`PLACE_ONLY`는 생성 시 정해진 항목이 있으므로 남은 항목을 확정하면 `CONFIRMED`가 됩니다.
+- 생성자가 지도 표시 시점까지 선택하지 않았을 때 최다득표 후보를 자동 선정하는 기능은 향후 개발 예정입니다. 현재 후보 번호 생략이나 특정 시각 도달에 따른 자동 확정은 없습니다.
 
 ## 약속 나가기와 강퇴
 
@@ -143,9 +145,9 @@ Java 21, Spring Boot 4.1.1, Spring Web MVC, Bean Validation, Spring Data JPA를 
 | DELETE | `/api/v1/appointments/{id}/members/me` | 본인의 약속 참여 취소 |
 | DELETE | `/api/v1/appointments/{id}/members/{memberId}` | 약속 방장이 참여자 강퇴 |
 
-`memberId`에는 대상 사용자의 ID를 넣습니다. 방장 본인의 나가기·강퇴는 거절합니다. 참여자를 제거할 때 멤버, 시간·장소 투표, 벌칙 동의를 같은 트랜잭션에서 삭제합니다. 강퇴는 재참여 차단 기능이 아니므로 방 멤버는 투표 가능한 상태에서 다시 투표해 참여할 수 있습니다.
+`memberId`에는 대상 사용자의 ID를 넣습니다. 방장 본인의 나가기·강퇴는 거절합니다. 참여자를 제거할 때 멤버와 시간·장소 투표를 같은 트랜잭션에서 삭제합니다. 강퇴는 재참여 차단 기능이 아니므로 방 멤버는 투표 가능한 상태에서 다시 투표해 참여할 수 있습니다.
 
-## 벌칙과 동의
+## 벌칙 설정과 수정
 
 벌칙 객체를 생략하면 벌칙 없이 생성합니다. 벌칙을 설정할 때는 다음 값을 사용합니다.
 
@@ -153,18 +155,17 @@ Java 21, Spring Boot 4.1.1, Spring Web MVC, Bean Validation, Spring Data JPA를 
 | --- | --- |
 | `description` | 필수, 공백 불가, 최대 100자 |
 | `lateThresholdMin` | 필수, `FIVE`, `TEN`, `FIFTEEN` 문자열로 각각 5·10·15분 지정 |
-| `target` | `LATEST_ONLY` 또는 `ALL_LATE`. 생략·`null`이면 `ALL_LATE` |
+| `target` | `ALL_LATE`만 지원. 생략·`null`이면 `ALL_LATE` |
 
-`ALL_LATE`는 설정한 지각 기준에 해당하는 모든 사람, `LATEST_ONLY`는 가장 늦은 사람을 대상으로 하는 규칙입니다. 기본값은 약속 생성과 벌칙 수정에 동일하게 적용합니다.
+`ALL_LATE`는 설정한 지각 기준에 해당하는 사람 전원을 벌칙 대상으로 지정하는 규칙입니다. 기본값은 약속 생성과 벌칙 수정에 동일하게 적용합니다. `LATEST_ONLY` 등 지원하지 않는 값은 HTTP 400 `BAD_REQUEST`로 거절합니다. 대상 선택 UI와 가장 늦은 사람 등의 추가 옵션은 향후 확장 대상입니다.
 
 | Method | Path | 동작 |
 | --- | --- | --- |
-| PUT | `/api/v1/appointments/{id}/penalty` | 방장이 벌칙 객체를 본문으로 보내 설정·수정 |
-| POST | `/api/v1/appointments/{id}/penalty/agreement` | 약속 멤버의 동의·취소 토글. 벌칙이 있어야 함 |
+| PUT | `/api/v1/appointments/{id}/penalty` | 생성자가 확정 전 벌칙 객체를 본문으로 보내 추가·수정 |
 
-현재 벌칙 수정 시 수정한 방장을 동의자로 등록합니다. 기존 방장 동의가 있으면 유지해 중복 저장을 피합니다. 다른 참여자의 기존 동의도 유지되며, 전원 동의를 확정·적용 조건으로 강제하는 처리는 없습니다. 약속 생성 시 벌칙을 포함하는 경로에는 이 수정 API의 자동 동의 처리가 없습니다.
+벌칙은 약속 생성 요청의 `penalty`로 설정하거나 생성 후 위 API로 추가·수정할 수 있습니다. 수정은 `COORDINATING` 상태에서 생성자만 가능합니다. 시간·장소 중 하나만 확정한 상태에서도 수정할 수 있으며, 둘 다 정해진 `CONFIRMED` 상태와 완료된 `COMPLETED` 상태에서는 HTTP 400 `BAD_REQUEST`로 거절합니다. 처음부터 `ALL` 템플릿으로 생성한 약속도 이미 확정 상태이므로 벌칙을 수정할 수 없습니다.
 
-**팀 논의 대기** — 벌칙 변경 시 동의 초기화, 전원 동의 여부, 미동의자 처리, 재동의 중 적용 기준, 수정 가능한 시점은 추가 논의 후 반영합니다. 위 설명은 현재 구현 동작입니다.
+벌칙은 참여자가 내용을 인지하고 참여하는 정책이며 별도 동의를 받지 않습니다. 동의 API(`/api/v1/appointments/{id}/penalty/agreement`), `PenaltyAgreement` 엔티티·저장소, 응답의 `penaltyAgreedUserIds`는 제거했습니다.
 
 ## 약속 응답과 저장 구조
 
@@ -173,7 +174,7 @@ Java 21, Spring Boot 4.1.1, Spring Web MVC, Bean Validation, Spring Data JPA를 
 - 기본 정보와 설정 — `id`, `roomId`, `name`, `template`, `status`, `createdAt`, `hostId`
 - 후보·확정 정보 — `candidatesTime`, `confirmedTime`, `candidatesPlace`, `confirmedPlace`
 - 규칙 — `penalty`, `reward`, `locationSharing`
-- 멤버·투표·동의 — `members`, `timeVotes`, `placeVotes`, `penaltyAgreedUserIds`
+- 멤버·투표 — `members`, `timeVotes`, `placeVotes`
 - 기존 공유 관련 필드 — `shareUrl`, `inviteCode`
 
 `timeVotes`와 `placeVotes`는 후보 인덱스별 사용자 ID 목록입니다. 후보·확정 시간은 UTC로 저장하고 응답에서는 KST(`+09:00`)로 변환합니다. `createdAt`은 `Instant`입니다.
@@ -224,7 +225,8 @@ Invoke-RestMethod -Method Post -Uri "$url/place-candidates" -Headers $headers -C
 Invoke-RestMethod -Method Put -Uri "$url/votes/time" -Headers $headers -ContentType 'application/json' -Body '{"optionIndexes":[0]}'
 Invoke-RestMethod -Method Put -Uri "$url/votes/place" -Headers $headers -ContentType 'application/json' -Body '{"optionIndexes":[0]}'
 Invoke-RestMethod -Uri "$url/votes" -Headers $headers | ConvertTo-Json -Depth 8
-Invoke-RestMethod -Method Post -Uri "$url/confirm" -Headers $headers -ContentType 'application/json' -Body '{}'
+Invoke-RestMethod -Method Post -Uri "$url/confirm/time" -Headers $headers -ContentType 'application/json' -Body '{"optionIndex":0}'
+Invoke-RestMethod -Method Post -Uri "$url/confirm/place" -Headers $headers -ContentType 'application/json' -Body '{"optionIndex":0}'
 Invoke-RestMethod -Uri $url -Headers $headers | ConvertTo-Json -Depth 8
 ```
 
