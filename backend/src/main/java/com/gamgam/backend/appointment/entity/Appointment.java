@@ -6,6 +6,8 @@ import com.gamgam.backend.appointment.vo.LocationSharingPolicy;
 import com.gamgam.backend.appointment.vo.PenaltyRule;
 import com.gamgam.backend.appointment.vo.Place;
 import com.gamgam.backend.appointment.vo.RewardRule;
+import com.gamgam.backend.global.exception.BusinessException;
+import com.gamgam.backend.global.exception.ErrorCode;
 import jakarta.persistence.*;
 import java.time.Instant;
 import java.time.OffsetDateTime;
@@ -36,16 +38,14 @@ public class Appointment {
     private String inviteCode;
     @Enumerated(EnumType.STRING) @Column(nullable = false, length = 20)
     private AppointmentTemplate template;
-    @ElementCollection
-    @CollectionTable(name = "appointment_candidate_times", joinColumns = @JoinColumn(name = "appointment_id"))
-    @OrderColumn(name = "candidate_order") @Column(name = "candidate_time", nullable = false)
-    private List<OffsetDateTime> candidatesTime = new ArrayList<>();
+    @OneToMany(mappedBy = "appointment", cascade = CascadeType.ALL, orphanRemoval = true)
+    @OrderColumn(name = "candidate_order")
+    private List<AppointmentTimeCandidate> candidatesTime = new ArrayList<>();
     @Column(name = "confirmed_time")
     private OffsetDateTime confirmedTime;
-    @ElementCollection
-    @CollectionTable(name = "appointment_candidate_places", joinColumns = @JoinColumn(name = "appointment_id"))
+    @OneToMany(mappedBy = "appointment", cascade = CascadeType.ALL, orphanRemoval = true)
     @OrderColumn(name = "candidate_order")
-    private List<Place> candidatesPlace = new ArrayList<>();
+    private List<AppointmentPlaceCandidate> candidatesPlace = new ArrayList<>();
     @Embedded private Place confirmedPlace;
     @Embedded private PenaltyRule penalty;
     @Embedded private RewardRule reward;
@@ -68,9 +68,9 @@ public class Appointment {
         this.hostId = hostId;
         this.inviteCode = inviteCode;
         this.template = template;
-        if (candidatesTime != null) this.candidatesTime.addAll(candidatesTime);
+        if (candidatesTime != null) candidatesTime.forEach(this::addCandidateTime);
         this.confirmedTime = confirmedTime;
-        if (candidatesPlace != null) this.candidatesPlace.addAll(candidatesPlace);
+        if (candidatesPlace != null) candidatesPlace.forEach(this::addCandidatePlace);
         this.confirmedPlace = confirmedPlace;
         this.penalty = penalty;
         this.reward = reward;
@@ -78,14 +78,26 @@ public class Appointment {
         this.status = status;
     }
 
-    public void confirm(Integer timeOptionIndex, Integer placeOptionIndex) {
-        if (template.coordinatesTime()) confirmedTime = candidatesTime.get(timeOptionIndex);
-        if (template.coordinatesPlace()) confirmedPlace = candidatesPlace.get(placeOptionIndex);
-        status = AppointmentStatus.CONFIRMED;
+    public void rename(String name) { this.name = name; }
+
+    public void confirmTime(String candidateId) {
+        confirmedTime = candidatesTime.stream().filter(candidate -> candidate.getCandidateId().equals(candidateId))
+                .findFirst().orElseThrow(() -> new BusinessException(ErrorCode.INVALID_VOTE_OPTION)).getTime();
+        settle();
     }
 
-    public void addCandidateTime(OffsetDateTime time) { candidatesTime.add(time); }
-    public void addCandidatePlace(Place place) { candidatesPlace.add(place); }
+    public void confirmPlace(String candidateId) {
+        confirmedPlace = candidatesPlace.stream().filter(candidate -> candidate.getCandidateId().equals(candidateId))
+                .findFirst().orElseThrow(() -> new BusinessException(ErrorCode.INVALID_VOTE_OPTION)).getPlace();
+        settle();
+    }
+
+    private void settle() {
+        if (confirmedTime != null && confirmedPlace != null) status = AppointmentStatus.CONFIRMED;
+    }
+
+    public void addCandidateTime(OffsetDateTime time) { candidatesTime.add(new AppointmentTimeCandidate(this, time)); }
+    public void addCandidatePlace(Place place) { candidatesPlace.add(new AppointmentPlaceCandidate(this, place)); }
     public void updatePenalty(PenaltyRule penalty) { this.penalty = penalty; }
     public void complete() { status = AppointmentStatus.COMPLETED; }
 }

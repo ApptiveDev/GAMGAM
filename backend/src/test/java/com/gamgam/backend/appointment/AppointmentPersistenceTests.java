@@ -5,7 +5,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import com.gamgam.backend.appointment.repository.AppointmentRepository;
-import com.gamgam.backend.appointment.dto.ConfirmAppointmentRequest;
+import com.gamgam.backend.appointment.vo.VoteType;
 import com.gamgam.backend.appointment.service.AppointmentService;
 import com.gamgam.backend.appointment.vo.AppointmentStatus;
 import com.gamgam.backend.auth.dto.SignupRequest;
@@ -23,6 +23,9 @@ class AppointmentPersistenceTests {
 
     @Autowired
     private AppointmentService service;
+
+    @Autowired
+    private com.gamgam.backend.appointment.service.AppointmentVotingService voting;
 
     @Autowired
     private AppointmentRepository repository;
@@ -58,11 +61,18 @@ class AppointmentPersistenceTests {
         var found = service.get(userId, created.id());
 
         assertThat(found.candidatesTime()).hasSize(2);
-        assertThat(found.candidatesTime().get(0).toInstant())
+        assertThat(found.candidatesTime().get(0).time().toInstant())
                 .isEqualTo(request.candidatesTime().get(0).toInstant());
-        assertThat(found.candidatesTime().get(1).toInstant())
+        assertThat(found.candidatesTime().get(1).time().toInstant())
                 .isEqualTo(request.candidatesTime().get(1).toInstant());
-        assertThat(found.candidatesPlace()).extracting("name").containsExactly("성수 카페거리", "서울숲");
+        assertThat(found.candidatesPlace()).extracting(candidate -> candidate.place().name()).containsExactly("성수 카페거리", "서울숲");
+        assertThat(found.candidatesTime()).isEqualTo(created.candidatesTime());
+        assertThat(found.candidatesPlace()).isEqualTo(created.candidatesPlace());
+        var ids = java.util.stream.Stream.concat(
+                found.candidatesTime().stream().map(candidate -> candidate.candidateId()),
+                found.candidatesPlace().stream().map(candidate -> candidate.candidateId())).toList();
+        assertThat(ids).hasSize(4).doesNotHaveDuplicates();
+        ids.forEach(candidateId -> assertThat(java.util.UUID.fromString(candidateId).toString()).isEqualTo(candidateId));
     }
 
     @Test
@@ -102,17 +112,25 @@ class AppointmentPersistenceTests {
         var joined = service.join(guestId, created.inviteCode().toLowerCase());
         assertThat(joined.members()).extracting("userId").contains(userId, guestId);
 
-        var timeVoted = service.toggleTimeVote(guestId, created.id(), 0);
-        assertThat(timeVoted.timeVotes().get(0)).contains(guestId);
-        var placeVoted = service.votePlace(guestId, created.id(), 1);
-        assertThat(placeVoted.placeVotes().get(1)).contains(guestId);
+        voting.voteTime(created.id(), guestId, java.util.Set.of(created.candidatesTime().get(0).candidateId()));
+        var timeVoted = service.get(guestId, created.id());
+        assertThat(timeVoted.timeVotes().get(created.candidatesTime().get(0).candidateId())).contains(guestId);
+        voting.votePlace(created.id(), guestId, java.util.Set.of(created.candidatesPlace().get(1).candidateId()));
+        var placeVoted = service.get(guestId, created.id());
+        assertThat(placeVoted.placeVotes().get(created.candidatesPlace().get(1).candidateId())).contains(guestId);
 
-        assertThatThrownBy(() -> service.confirm(
-                guestId, created.id(), new ConfirmAppointmentRequest(0, 1)))
+        assertThatThrownBy(() -> service.confirmOption(guestId, created.id(), VoteType.TIME, created.candidatesTime().get(0).candidateId()))
                 .isInstanceOfSatisfying(BusinessException.class,
                         error -> assertThat(error.errorCode()).isEqualTo(ErrorCode.APPOINTMENT_HOST_ONLY));
 
-        var confirmed = service.confirm(userId, created.id(), new ConfirmAppointmentRequest(0, 1));
+        service.confirmOption(userId, created.id(), VoteType.TIME, created.candidatesTime().get(0).candidateId());
+        var partial = service.get(userId, created.id());
+        assertThat(partial.status()).isEqualTo(AppointmentStatus.COORDINATING);
+        assertThat(partial.confirmedTime()).isNotNull();
+        assertThat(partial.confirmedPlace()).isNull();
+
+        service.confirmOption(userId, created.id(), VoteType.PLACE, created.candidatesPlace().get(1).candidateId());
+        var confirmed = service.get(userId, created.id());
         assertThat(confirmed.status()).isEqualTo(AppointmentStatus.CONFIRMED);
         assertThat(confirmed.confirmedTime()).isNotNull();
         assertThat(confirmed.confirmedPlace()).isNotNull();

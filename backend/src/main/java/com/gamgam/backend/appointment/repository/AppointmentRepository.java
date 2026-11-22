@@ -20,16 +20,8 @@ public interface AppointmentRepository extends JpaRepository<Appointment, String
 
     @Query("""
             select a from Appointment a
-            where exists (select m.id from AppointmentMember m where m.appointment = a and m.user.id = :userId)
+            where exists (select m.id from RoomMember m where m.room.id = a.roomId and m.user.id = :userId)
             order by a.createdAt desc
             """)
     List<Appointment> findAllForUser(String userId);
-
-    @Query("""
-            select a from Appointment a
-            where a.roomId = :roomId
-              and exists (select m.id from AppointmentMember m where m.appointment = a and m.user.id = :userId)
-            order by a.createdAt desc
-            """)
-    List<Appointment> findAllForUserInRoom(String roomId, String userId);
 }
