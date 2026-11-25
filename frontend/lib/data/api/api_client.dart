@@ -54,8 +54,14 @@ class ApiClient {
   /// 로그인한 사용자. 로그인 전이거나 실패했으면 null.
   ApiUser? get user => _user;
 
+  /// `--dart-define=API_BASE_URL=...`로 지정한 주소. 예: `flutter run -d chrome --dart-define=API_BASE_URL=http://localhost:8080`
+  static const _apiBaseUrl = String.fromEnvironment('API_BASE_URL');
+
+  /// 요청 경로에 이미 `/api/v1`이 들어 있으므로 기본 주소에는 붙이지 않는다.
   static String get _defaultBaseUrl {
-    if (kIsWeb) return 'http://localhost:8080';
+    if (_apiBaseUrl.isNotEmpty) return _apiBaseUrl.endsWith('/') ? _apiBaseUrl.substring(0, _apiBaseUrl.length - 1) : _apiBaseUrl;
+    // 배포된 웹은 Nginx가 프론트와 API를 같은 주소로 내주므로 지금 접속한 주소로 부른다.
+    if (kIsWeb) return Uri.base.origin;
     return Platform.isAndroid ? 'http://10.0.2.2:8080' : 'http://localhost:8080';
   }
 
