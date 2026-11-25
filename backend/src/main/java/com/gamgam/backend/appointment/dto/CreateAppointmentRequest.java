@@ -104,14 +104,19 @@ public record CreateAppointmentRequest(
     public record PlaceRequest(
             @NotBlank @Size(max = 100) String name,
             @DecimalMin("-90") @DecimalMax("90") Double latitude,
-            @DecimalMin("-180") @DecimalMax("180") Double longitude) {
+            @DecimalMin("-180") @DecimalMax("180") Double longitude,
+            @Size(max=500) String address, @Size(max=100) String category,
+            @Size(max=2048) @jakarta.validation.constraints.Pattern(regexp="https?://[^\\s]+") String imageUrl,
+            @Size(max=100) String providerId,
+            @Size(max=2048) @jakarta.validation.constraints.Pattern(regexp="https?://[^\\s]+") String mapUrl) {
+        public PlaceRequest(String name,Double latitude,Double longitude) { this(name,latitude,longitude,null,null,null,null,null); }
         @AssertTrue(message = "latitude and longitude must be provided together")
         public boolean isCoordinatesPaired() {
             return (latitude == null) == (longitude == null);
         }
 
         public Place toDomain() {
-            return new Place(name, latitude, longitude);
+            return new Place(name.strip(), latitude, longitude, address, category, imageUrl, providerId, mapUrl);
         }
     }
 

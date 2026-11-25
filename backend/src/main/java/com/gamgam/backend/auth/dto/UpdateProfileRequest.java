@@ -6,6 +6,8 @@ import jakarta.validation.constraints.Size;
 public record UpdateProfileRequest(
         @NotBlank(message = "Name is required.")
         @Size(min = 2, max = 30, message = "Name must be between 2 and 30 characters.")
-        String name
+        String name,
+        @Size(max=2048) @jakarta.validation.constraints.Pattern(regexp="https?://[^\\s]+") String avatarUrl
 ) {
+    public UpdateProfileRequest(String name) { this(name,null); }
 }

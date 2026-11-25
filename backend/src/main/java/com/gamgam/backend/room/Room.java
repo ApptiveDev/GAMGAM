@@ -32,6 +32,18 @@ public class Room {
     @Column(nullable = false, updatable = false)
     private Instant createdAt;
 
+    @Column(unique = true, length = 36)
+    private String inviteCode;
+    @Column(length = 2048)
+    private String coverImageUrl;
+    public void rename(String name) { this.name = name; }
+    public void setCoverImageUrl(String value) { this.coverImageUrl = value; }
+    public String ensureInviteCode() {
+        if (inviteCode == null) inviteCode = java.util.UUID.randomUUID().toString();
+        return inviteCode;
+    }
+    public void rotateInviteCode() { inviteCode = java.util.UUID.randomUUID().toString(); }
+
     public Room(String id, String name, String ownerId) {
         this.id = id;
         this.name = name;

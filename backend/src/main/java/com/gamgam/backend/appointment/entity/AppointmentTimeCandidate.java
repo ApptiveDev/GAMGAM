@@ -23,6 +23,8 @@ public class AppointmentTimeCandidate {
     @Column(name = "candidate_time", nullable = false)
     private OffsetDateTime time;
 
+    public void change(OffsetDateTime value) { this.time = value; }
+
     public AppointmentTimeCandidate(Appointment appointment, OffsetDateTime time) {
         this.candidateId = UUID.randomUUID().toString();
         this.appointment = appointment;

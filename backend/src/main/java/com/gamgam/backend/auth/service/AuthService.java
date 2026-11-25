@@ -26,6 +26,7 @@ public class AuthService {
     private final UserRepository userRepository;
     private final PasswordHasher passwordHasher;
     private final JwtTokenProvider jwtTokenProvider;
+    private final com.gamgam.backend.media.MediaService media;
 
     @Transactional
     public UserResponse signup(SignupRequest request) {
@@ -65,7 +66,9 @@ public class AuthService {
     @Transactional
     public UserResponse updateProfile(String userId, UpdateProfileRequest request) {
         User user = findUser(userId);
+        media.validateReference(userId, request.avatarUrl());
         user.updateName(request.name().trim());
+        if (request.avatarUrl() != null) user.updateAvatar(request.avatarUrl());
         return UserResponse.from(user);
     }
 

@@ -14,6 +14,8 @@ import org.springframework.transaction.annotation.Transactional;
 public class AppointmentParticipationService {
     private final AppointmentMemberRepository members;
     private final AppointmentVoteRepository votes;
+    private final com.gamgam.backend.map.LiveLocationRepository locations;
+    private final com.gamgam.backend.map.AttendanceRepository attendance;
 
     // 약속을 잠금 처리한 후, 호출한 쪽의 트랜잭션 내에서 호출.
     @Transactional(propagation = Propagation.MANDATORY)
@@ -22,6 +24,8 @@ public class AppointmentParticipationService {
         String userId = member.getUser().getId();
         votes.deleteSelection(appointmentId, userId, VoteType.TIME);
         votes.deleteSelection(appointmentId, userId, VoteType.PLACE);
+        locations.deleteByRoomIdAndUserId(appointmentId, userId);
+        attendance.deleteByAppointmentIdAndUserId(appointmentId, userId);
         members.delete(member);
     }
 }

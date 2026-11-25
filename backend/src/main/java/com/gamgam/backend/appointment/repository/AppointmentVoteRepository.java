@@ -15,6 +15,10 @@ public interface AppointmentVoteRepository extends JpaRepository<AppointmentVote
     boolean existsByAppointmentIdAndUserId(String appointmentId, String userId);
 
     @Modifying(flushAutomatically = true)
+    @Query("delete from AppointmentVote v where v.appointment.id = :id and v.type = :type and v.candidateId = :candidateId")
+    void deleteCandidate(@Param("id") String id, @Param("type") VoteType type, @Param("candidateId") String candidateId);
+
+    @Modifying(flushAutomatically = true)
     @Query("delete from AppointmentVote v where v.appointment.id = :id and v.userId = :userId and v.type = :type")
     void deleteSelection(@Param("id") String appointmentId, @Param("userId") String userId,
                          @Param("type") VoteType type);
