@@ -14,7 +14,7 @@ import '../../data/repositories/appointment_repository.dart';
 import '../shell/main_shell.dart';
 
 /// 메인화면. 사과 위에 가장 가까운 약속까지 남은 시간, 아래에서 약속 카드가 올라온다.
-/// 스크롤하면 카드 판이 사과를 덮고 "Hello" 문구와 로고가 흐려진다.
+/// 스크롤하면 카드 판이 올라오고 사과·"Hello" 문구·로고가 흐려지다가 사라진다.
 class HomePage extends StatefulWidget {
   const HomePage({super.key});
 
@@ -65,7 +65,8 @@ class _HomePageState extends State<HomePage> {
             top: 94,
             width: 950,
             height: 534.375,
-            child: Opacity(opacity: (0.4 + fade * 0.6).clamp(0, 1), child: Image.asset('assets/figma/apple.gif', fit: BoxFit.cover)),
+            // 스크롤하면 문구와 함께 흐려지다가 완전히 사라진다.
+            child: Opacity(opacity: fade, child: Image.asset('assets/figma/apple.gif', fit: BoxFit.cover)),
           ),
           SafeArea(
             bottom: false,

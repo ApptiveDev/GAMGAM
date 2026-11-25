@@ -45,6 +45,15 @@ class _AppointmentPageState extends State<AppointmentPage> {
   /// 추천 장소 "새로고침" 할 때마다 다음 묶음을 보여준다.
   var _recommendPage = 0;
 
+  /// 배경 하늘색이 내용과 함께 위로 올라가도록 [PinkFrame]에 넘긴다.
+  final _scroll = ScrollController();
+
+  @override
+  void dispose() {
+    _scroll.dispose();
+    super.dispose();
+  }
+
   @override
   Widget build(BuildContext context) {
     final repo = context.watch<AppointmentRepository>();
@@ -54,21 +63,25 @@ class _AppointmentPageState extends State<AppointmentPage> {
     final live = a.isConfirmed && a.confirmedTime != null && now.isAfter(a.confirmedTime!.subtract(const Duration(hours: 2)));
 
     return PinkFrame(
-      child: Column(children: [
-        FrameTopBar(
-          leading: GamIconButton('ic_arrow_left', tooltip: '뒤로', onTap: () => context.canPop() ? context.pop() : context.go(AppRoutes.home)),
-        ),
-        Expanded(
-          child: ListView(
-            padding: const EdgeInsets.fromLTRB(20, 2, 20, 48),
-            children: [
+      scrollWith: _scroll,
+      // 뒤로가기 줄도 내용과 함께 스크롤되어, 위로 올라가는 내용이 그 밑에 가려지지 않는다.
+      child: ListView(
+        controller: _scroll,
+        padding: const EdgeInsets.only(bottom: 48),
+        children: [
+          FrameTopBar(
+            leading: GamIconButton('ic_arrow_left', tooltip: '뒤로', onTap: () => context.canPop() ? context.pop() : context.go(AppRoutes.home)),
+          ),
+          Padding(
+            padding: const EdgeInsets.fromLTRB(20, 2, 20, 0),
+            child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
               _Header(appointment: a, live: live),
               const SizedBox(height: 36),
               if (live) ..._liveSections(a) else ..._sections(a),
-            ],
+            ]),
           ),
-        ),
-      ]),
+        ],
+      ),
     );
   }
 
