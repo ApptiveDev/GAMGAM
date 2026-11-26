@@ -33,7 +33,8 @@ public record AppointmentResponse(
         String inviteCode,
         List<AppointmentMemberResponse> members,
         Map<String, List<String>> timeVotes,
-        Map<String, List<String>> placeVotes
+        Map<String, List<String>> placeVotes,
+        String coverImageUrl, String cardText, String cardStyle
 ) {
     public record TimeCandidateResponse(String candidateId, OffsetDateTime time) {}
     public record PlaceCandidateResponse(String candidateId, Place place) {}
@@ -45,7 +46,7 @@ public record AppointmentResponse(
                                AppointmentStatus status, String shareUrl, Instant createdAt) {
         this(id, null, name, template, candidatesTime, confirmedTime, candidatesPlace, confirmedPlace,
                 penalty, reward, locationSharing, status, shareUrl, createdAt,
-                null, null, List.of(), Map.of(), Map.of());
+                null, null, List.of(), Map.of(), Map.of(), null, null, null);
     }
 
     public static AppointmentResponse of(Appointment appointment, String shareUrl) {
@@ -67,7 +68,7 @@ public record AppointmentResponse(
                 appointment.getStatus(),
                 shareUrl,
                 appointment.getCreatedAt(), appointment.getHostId(), appointment.getInviteCode(),
-                List.of(), Map.of(), Map.of());
+                List.of(), Map.of(), Map.of(), appointment.getCoverImageUrl(), appointment.getCardText(), appointment.getCardStyle());
     }
 
     public static AppointmentResponse of(Appointment appointment, String shareUrl,
@@ -78,6 +79,6 @@ public record AppointmentResponse(
         return new AppointmentResponse(base.id, base.roomId, base.name, base.template, base.candidatesTime,
                 base.confirmedTime, base.candidatesPlace, base.confirmedPlace, base.penalty, base.reward,
                 base.locationSharing, base.status, base.shareUrl, base.createdAt,
-                base.hostId, base.inviteCode, members, timeVotes, placeVotes);
+                base.hostId, base.inviteCode, members, timeVotes, placeVotes, base.coverImageUrl, base.cardText, base.cardStyle);
     }
 }

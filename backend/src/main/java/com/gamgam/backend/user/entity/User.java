@@ -37,6 +37,10 @@ public class User {
     @Column(nullable = false, updatable = false)
     private Instant createdAt;
 
+    @Column(length=2048)
+    private String avatarUrl;
+    public void updateAvatar(String value) { avatarUrl=value; }
+
     @Builder
     public User(String id, String email, String name, String passwordHash) {
         this.id = id;

@@ -3,6 +3,10 @@ package com.gamgam.backend.global.exception;
 import org.springframework.http.HttpStatus;
 
 public enum ErrorCode {
+    POLL_CLOSED(HttpStatus.CONFLICT, "Poll is closed."),
+    POLL_HAS_VOTES(HttpStatus.CONFLICT, "Poll settings cannot change after voting starts."),
+    POKE_COOLDOWN(HttpStatus.TOO_MANY_REQUESTS, "Please wait before poking this member again."),
+    PROVIDER_UNAVAILABLE(HttpStatus.SERVICE_UNAVAILABLE, "External provider is unavailable or not configured."),
     BAD_REQUEST(HttpStatus.BAD_REQUEST, "Invalid request."),
     NOT_FOUND(HttpStatus.NOT_FOUND, "Resource not found."),
     VALIDATION_ERROR(HttpStatus.BAD_REQUEST, "Request validation failed."),

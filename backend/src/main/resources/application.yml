@@ -1,4 +1,8 @@
 spring:
+  servlet:
+    multipart:
+      max-file-size: 5MB
+      max-request-size: 6MB
   application:
     name: gamgam-backend
   profiles:
@@ -13,3 +17,11 @@ spring:
 server:
   servlet:
     context-path: /
+
+app:
+  media:
+    base-url: ${MEDIA_BASE_URL:http://localhost:8080}
+  places:
+    kakao-key: ${KAKAO_REST_API_KEY:}
+  weather:
+    enabled: ${WEATHER_ENABLED:false}

@@ -23,6 +23,8 @@ public class AppointmentPlaceCandidate {
     @Embedded
     private Place place;
 
+    public void change(Place value) { this.place = value; }
+
     public AppointmentPlaceCandidate(Appointment appointment, Place place) {
         this.candidateId = UUID.randomUUID().toString();
         this.appointment = appointment;

@@ -6,6 +6,11 @@ import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 
 public interface RoomRepository extends JpaRepository<Room, String> {
+    java.util.Optional<Room> findByInviteCode(String inviteCode);
+    @org.springframework.data.jpa.repository.Lock(jakarta.persistence.LockModeType.PESSIMISTIC_WRITE)
+    @Query("select r from Room r where r.id = :id")
+    java.util.Optional<Room> findByIdForUpdate(@Param("id") String id);
+
     @Query("""
             select r from Room r
             where exists (select m.id from RoomMember m where m.room = r and m.user.id = :userId)

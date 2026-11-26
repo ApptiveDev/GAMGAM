@@ -42,6 +42,7 @@ public class AppointmentVotingService {
     private final UserRepository users;
     private final RoomAccess rooms;
     private final AppointmentParticipationService participation;
+    private final com.gamgam.backend.media.MediaService media;
 
     public AppointmentVotingResponse get(String id, String userId) {
         return response(load(id, userId, false), userId);
@@ -63,6 +64,9 @@ public class AppointmentVotingService {
         boolean allowed = type == VoteType.TIME
                 ? appointment.getTemplate().coordinatesTime() && appointment.getConfirmedTime() == null
                 : appointment.getTemplate().coordinatesPlace() && appointment.getConfirmedPlace() == null;
+        if (appointment.poll(type).closed()) throw new BusinessException(ErrorCode.POLL_CLOSED);
+        if (candidateIds != null && candidateIds.size() > 1 && !appointment.poll(type).isMultipleSelection())
+            throw new BusinessException(ErrorCode.BAD_REQUEST);
         if (!allowed) throw new BusinessException(ErrorCode.VOTE_NOT_ALLOWED);
         Set<String> availableIds = type == VoteType.TIME
                 ? appointment.getCandidatesTime().stream().map(AppointmentTimeCandidate::getCandidateId).collect(Collectors.toSet())
@@ -72,6 +76,10 @@ public class AppointmentVotingService {
             throw new BusinessException(ErrorCode.INVALID_OPTION);
         }
         // 후보의 약속·종류를 먼저 확인하여 잘못된 요청이 기존 표를 지우지 않도록 한다.
+        var currentIds = votes.findByAppointmentIdOrderByIdAsc(id).stream()
+                .filter(v -> v.getType() == type && v.getUserId().equals(userId))
+                .map(AppointmentVote::getCandidateId).collect(Collectors.toSet());
+        if (currentIds.equals(candidateIds)) return response(appointment, userId);
         votes.deleteSelection(id, userId, type);
         votes.saveAll(new TreeSet<>(candidateIds).stream()
                 .map(candidateId -> new AppointmentVote(appointment, userId, type, candidateId)).toList());
@@ -87,6 +95,8 @@ public class AppointmentVotingService {
                 || appointment.getTemplate().coordinatesPlace() && appointment.getConfirmedPlace() != null) {
             throw new BusinessException(ErrorCode.VOTE_NOT_ALLOWED);
         }
+        if (appointment.poll(VoteType.TIME).closed() || appointment.poll(VoteType.PLACE).closed())
+            throw new BusinessException(ErrorCode.POLL_CLOSED);
         if (selected) {
             // 특정 후보 선택과 배타적이다. 전환과 참여자 갱신을 하나의 트랜잭션에서 처리한다.
             votes.deleteSelection(id, userId, VoteType.TIME);
@@ -118,6 +128,7 @@ public class AppointmentVotingService {
         if (!appointment.getTemplate().coordinatesTime() || appointment.getConfirmedTime() != null) {
             throw new BusinessException(ErrorCode.VOTE_NOT_ALLOWED);
         }
+        requireAdding(appointment, userId, VoteType.TIME);
         if (request.time() == null || !request.time().isAfter(OffsetDateTime.now())) {
             throw new BusinessException(ErrorCode.BAD_REQUEST);
         }
@@ -142,15 +153,23 @@ public class AppointmentVotingService {
         if (!appointment.getTemplate().coordinatesPlace() || appointment.getConfirmedPlace() != null) {
             throw new BusinessException(ErrorCode.VOTE_NOT_ALLOWED);
         }
+        requireAdding(appointment, userId, VoteType.PLACE);
         String name = request.name().strip();
         boolean duplicate = appointment.getCandidatesPlace().stream().map(AppointmentPlaceCandidate::getPlace).anyMatch(place ->
                 name.equalsIgnoreCase(place.name().strip())
                         && Objects.equals(request.latitude(), place.latitude())
                         && Objects.equals(request.longitude(), place.longitude()));
         if (duplicate) throw new BusinessException(ErrorCode.DUPLICATE_CANDIDATE);
-        appointment.addCandidatePlace(new Place(name, request.latitude(), request.longitude()));
+        media.validateReference(userId, request.imageUrl());
+        appointment.addCandidatePlace(request.toDomain());
         // 제안만으로 투표나 참여 신청을 만들지 않는다. 기존 투표도 그대로 유지한다.
         return response(appointment, userId);
+    }
+
+    private void requireAdding(Appointment a, String userId, VoteType type) {
+        if (a.poll(type).closed()) throw new BusinessException(ErrorCode.POLL_CLOSED);
+        if (!a.getHostId().equals(userId) && !a.poll(type).isAllowAddingOptions())
+            throw new BusinessException(ErrorCode.APPOINTMENT_HOST_ONLY);
     }
 
     private Appointment load(String id, String userId, boolean forUpdate) {
@@ -179,15 +198,17 @@ public class AppointmentVotingService {
             var voterIds = voterIds(allVotes, VoteType.TIME, candidate.getCandidateId());
             return new AppointmentVotingResponse.TimeOption(candidate.getCandidateId(),
                     KstTimeConverter.toKst(candidate.getTime()),
-                    voterIds.size(), voterIds, voterIds.contains(userId));
+                    voterIds.size(), appointment.poll(VoteType.TIME).isAnonymous() ? List.of() : voterIds, voterIds.contains(userId));
         }).toList();
         var places = appointment.getCandidatesPlace().stream().map(candidate -> {
             var voterIds = voterIds(allVotes, VoteType.PLACE, candidate.getCandidateId());
             return new AppointmentVotingResponse.PlaceOption(candidate.getCandidateId(), candidate.getPlace(),
-                    voterIds.size(), voterIds, voterIds.contains(userId));
+                    voterIds.size(), appointment.poll(VoteType.PLACE).isAnonymous() ? List.of() : voterIds, voterIds.contains(userId));
         }).toList();
         return new AppointmentVotingResponse(appointment.getId(), appointment.getRoomId(), appointment.getStatus(),
-                participantIds.contains(userId), participantIds, regardlessIds.contains(userId), regardlessIds, times, places);
+                participantIds.contains(userId), participantIds, regardlessIds.contains(userId), regardlessIds, times, places,
+                AppointmentVotingResponse.PollResponse.from(appointment.poll(VoteType.TIME), appointment.getConfirmedTime() != null, times.isEmpty()),
+                AppointmentVotingResponse.PollResponse.from(appointment.poll(VoteType.PLACE), appointment.getConfirmedPlace() != null, places.isEmpty()));
     }
 
     private static List<String> voterIds(List<AppointmentVote> votes, VoteType type, String candidateId) {

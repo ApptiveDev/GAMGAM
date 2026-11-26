@@ -45,7 +45,7 @@ class AppointmentServiceTests {
         users = mock(UserRepository.class);
         rooms = mock(RoomAccess.class);
         service = new AppointmentService(appointments, members, votes, users,
-                new ShareLinkGenerator(new ShareProperties("http://localhost:3000")), rooms, mock(AppointmentParticipationService.class));
+                new ShareLinkGenerator(new ShareProperties("http://localhost:3000")), rooms, mock(AppointmentParticipationService.class), mock(com.gamgam.backend.media.MediaService.class));
         user = User.builder().id("user-1").email("user@example.com").name("User").passwordHash("hash").build();
         when(users.findById("user-1")).thenReturn(Optional.of(user));
         when(appointments.save(any(Appointment.class))).thenAnswer(invocation -> invocation.getArgument(0));
