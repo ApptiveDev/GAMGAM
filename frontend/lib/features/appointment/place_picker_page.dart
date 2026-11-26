@@ -1,7 +1,6 @@
 import 'dart:ui' show ImageFilter;
 
 import 'package:flutter/material.dart';
-import 'package:go_router/go_router.dart';
 import 'package:provider/provider.dart';
 
 import '../../core/theme/gam_colors.dart';
@@ -77,7 +76,7 @@ class _PlacePickerPageState extends State<PlacePickerPage> {
       child: Stack(children: [
         Column(children: [
           FrameTopBar(
-            leading: GamIconButton('ic_arrow_left_dark', tooltip: '뒤로', onTap: () => context.pop()),
+            leading: GamIconButton('ic_arrow_left_dark', tooltip: '뒤로', onTap: () => Navigator.of(context).pop()),
             middle: Padding(padding: const EdgeInsets.only(left: 2), child: Text('추천 장소', style: GamText.body16)),
             // 현재 위치로 보기는 지도 담당 화면과 함께 붙인다.
             trailing: const Padding(padding: EdgeInsets.all(11), child: GamIcon('ic_crosshair', size: 22)),

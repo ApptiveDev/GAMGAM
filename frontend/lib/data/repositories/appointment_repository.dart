@@ -83,7 +83,9 @@ abstract class AppointmentRepository extends ChangeNotifier {
   /// 장소 "바로 정하기" — 약속장이 투표 없이 장소를 확정한다.
   Future<void> decidePlace(String appointmentId, Place place);
 
-  /// 투표 종료하기 — 1위 후보로 그 항목을 확정한다. 시간·장소가 모두 정해지면 약속이 확정된다.
+  /// 투표 종료하기(약속장만) — 더 받지 않고 "확정대기 중"이 된다.
+  /// 확정은 약속장이 확정하기 페이지에서 고른 값으로 [decideTime]·[decidePlace]를 불러 한다.
+  /// 시간·장소가 모두 정해지면 약속이 확정된다.
   Future<void> closeTimeVote(String appointmentId);
   Future<void> closePlaceVote(String appointmentId);
 

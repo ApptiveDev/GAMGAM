@@ -223,13 +223,13 @@ class MockAppointmentRepository extends AppointmentRepository {
   @override
   Future<void> closeTimeVote(String appointmentId) async {
     await Future.delayed(_latency);
-    _update(appointmentId, (a) => _settle(a.copyWith(confirmedTime: a.time)));
+    _update(appointmentId, (a) => a.copyWith(timeVoteClosed: true));
   }
 
   @override
   Future<void> closePlaceVote(String appointmentId) async {
     await Future.delayed(_latency);
-    _update(appointmentId, (a) => _settle(a.copyWith(confirmedPlace: a.place)));
+    _update(appointmentId, (a) => a.copyWith(placeVoteClosed: true));
   }
 
   /// 시간·장소가 모두 정해졌으면 약속을 확정한다.
@@ -287,6 +287,8 @@ class MockAppointmentRepository extends AppointmentRepository {
               createdAt: local.createdAt,
               timeVoteSettings: local.timeVoteSettings,
               placeVoteSettings: local.placeVoteSettings,
+              timeVoteClosed: local.timeVoteClosed,
+              placeVoteClosed: local.placeVoteClosed,
               voteDuration: local.voteDuration,
             );
     }

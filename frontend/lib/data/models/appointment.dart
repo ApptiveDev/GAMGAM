@@ -29,6 +29,8 @@ class Appointment {
     this.createdAt,
     this.timeVoteSettings = const VoteSettings(),
     this.placeVoteSettings = const VoteSettings(),
+    this.timeVoteClosed = false,
+    this.placeVoteClosed = false,
     this.voteDuration = VoteDuration.min30,
   });
 
@@ -70,6 +72,10 @@ class Appointment {
   /// 장소 투표 설정.
   final VoteSettings placeVoteSettings;
 
+  /// 약속장이 "투표 종료하기"를 눌렀다. 확정하기 전까지 "확정대기 중"으로 보여준다.
+  final bool timeVoteClosed;
+  final bool placeVoteClosed;
+
   /// 투표 진행 시간. 시간·장소 투표가 함께 쓴다.
   final VoteDuration voteDuration;
 
@@ -83,6 +89,10 @@ class Appointment {
   /// 시간·장소를 투표로 정하는 중인지. 둘 중 하나라도 아직 안 정해졌으면 true.
   bool get isVotingTime => isCoordinating && confirmedTime == null;
   bool get isVotingPlace => isCoordinating && confirmedPlace == null;
+
+  /// 투표는 끝났고 약속장의 확정을 기다리는 중.
+  bool get awaitsTimeConfirm => isVotingTime && timeVoteClosed;
+  bool get awaitsPlaceConfirm => isVotingPlace && placeVoteClosed;
 
   /// 이 후보 목록에 아직 한 표도 안 던진 사람 수.
   int pendingVotersOf<T>(List<VoteOption<T>> options) {
@@ -132,6 +142,8 @@ class Appointment {
     String? imageAsset,
     VoteSettings? timeVoteSettings,
     VoteSettings? placeVoteSettings,
+    bool? timeVoteClosed,
+    bool? placeVoteClosed,
     VoteDuration? voteDuration,
   }) =>
       Appointment(
@@ -155,6 +167,8 @@ class Appointment {
         createdAt: createdAt,
         timeVoteSettings: timeVoteSettings ?? this.timeVoteSettings,
         placeVoteSettings: placeVoteSettings ?? this.placeVoteSettings,
+        timeVoteClosed: timeVoteClosed ?? this.timeVoteClosed,
+        placeVoteClosed: placeVoteClosed ?? this.placeVoteClosed,
         voteDuration: voteDuration ?? this.voteDuration,
       );
 }

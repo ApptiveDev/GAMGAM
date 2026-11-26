@@ -35,6 +35,17 @@ void main() {
     await settle(tester);
   }
 
+  /// 투표 종료하기 → 확인 창 "종료" → 확정대기 카드의 "확정하기" → 1위로 확정.
+  Future<void> closeAndConfirm(WidgetTester tester) async {
+    await tapText(tester, '투표 종료하기');
+    await tester.tap(find.text('종료'));
+    await settle(tester);
+    expect(find.text('확정대기 중'), findsOneWidget);
+    await tapText(tester, '확정하기');
+    await tester.tap(find.textContaining('로 확정'));
+    await settle(tester);
+  }
+
   testWidgets('홈: 인사, 가장 가까운 약속 카운트다운, 내 약속 카드', (tester) async {
     await open(tester);
 
@@ -122,7 +133,7 @@ void main() {
     expect(find.text('1명'), findsOneWidget);
     expect(find.text('모두 투표 완료했어요'), findsOneWidget);
 
-    await tapText(tester, '투표 종료하기');
+    await closeAndConfirm(tester);
     final closed = repo.findById(created.id)!;
     expect(closed.confirmedTime, isNotNull);
     expect(closed.status, AppointmentStatus.coordinating, reason: '장소가 아직 안 정해졌다');
@@ -148,9 +159,18 @@ void main() {
     await tapText(tester, '투표하기');
     expect(repo.findById('a-donggi')!.placeOptions.first.votedBy(repo.me.id), isTrue);
 
-    // 시간 → 장소 순서로 투표를 끝낸다.
+    // 시간 → 장소 순서로 투표를 끝내고 1위로 확정한다. 장소는 성수다락이 1위가 아니면 직접 고른다.
+    await closeAndConfirm(tester);
     await tapText(tester, '투표 종료하기');
-    await tapText(tester, '투표 종료하기');
+    await tester.tap(find.text('종료'));
+    await settle(tester);
+    await tapText(tester, '확정하기');
+    if (find.text('성수다락로 확정').evaluate().isEmpty) {
+      await tester.tap(find.text('성수다락').last);
+      await tester.pump();
+    }
+    await tester.tap(find.text('성수다락로 확정'));
+    await settle(tester);
 
     final a = repo.findById('a-donggi')!;
     expect(a.isConfirmed, isTrue);
