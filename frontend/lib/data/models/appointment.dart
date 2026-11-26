@@ -2,6 +2,7 @@ import 'decision_template.dart';
 import 'participant.dart';
 import 'place.dart';
 import 'vote_option.dart';
+import 'vote_settings.dart';
 
 enum AppointmentStatus { coordinating, confirmed, completed }
 
@@ -26,6 +27,8 @@ class Appointment {
     this.groupId,
     this.imageAsset,
     this.createdAt,
+    this.timeVoteSettings = const VoteSettings(),
+    this.voteDuration = VoteDuration.min30,
   });
 
   final String id;
@@ -59,6 +62,12 @@ class Appointment {
 
   /// 그룹 안 "최근 만든 순" 정렬에 쓴다.
   final DateTime? createdAt;
+
+  /// 시간 투표 설정 (복수선택·익명·후보 추가 허용).
+  final VoteSettings timeVoteSettings;
+
+  /// 투표 진행 시간. 시간·장소 투표가 함께 쓴다.
+  final VoteDuration voteDuration;
 
   bool get isCoordinating => status == AppointmentStatus.coordinating;
   bool get isConfirmed => status == AppointmentStatus.confirmed;
@@ -117,6 +126,8 @@ class Appointment {
     int? lateCount,
     String? groupId,
     String? imageAsset,
+    VoteSettings? timeVoteSettings,
+    VoteDuration? voteDuration,
   }) =>
       Appointment(
         id: id,
@@ -137,5 +148,7 @@ class Appointment {
         groupId: groupId ?? this.groupId,
         imageAsset: imageAsset ?? this.imageAsset,
         createdAt: createdAt,
+        timeVoteSettings: timeVoteSettings ?? this.timeVoteSettings,
+        voteDuration: voteDuration ?? this.voteDuration,
       );
 }

@@ -7,6 +7,7 @@ import '../models/group.dart';
 import '../models/participant.dart';
 import '../models/place.dart';
 import '../models/vote_option.dart';
+import '../models/vote_settings.dart';
 import 'appointment_repository.dart';
 
 /// 메모리에만 저장하는 목업. 앱을 껐다 켜면 초기화된다.
@@ -161,6 +162,31 @@ class MockAppointmentRepository extends AppointmentRepository {
   }
 
   @override
+  Future<void> decideTime(String appointmentId, DateTime time) async {
+    await Future.delayed(_latency);
+    _update(appointmentId, (a) {
+      final existing = a.timeOptions.where((o) => o.value == time);
+      final options = existing.isEmpty ? [...a.timeOptions, TimeOption(id: 't-${time.millisecondsSinceEpoch}', value: time)] : a.timeOptions;
+      return _settle(a.copyWith(timeOptions: options, confirmedTime: time));
+    });
+  }
+
+  @override
+  Future<void> startTimeVote(
+    String appointmentId, {
+    required List<DateTime> times,
+    required VoteSettings settings,
+    required VoteDuration duration,
+  }) async {
+    await Future.delayed(_latency);
+    _update(appointmentId, (a) => a.copyWith(
+          timeOptions: [for (final t in times) TimeOption(id: 't-${t.millisecondsSinceEpoch}', value: t)],
+          timeVoteSettings: settings,
+          voteDuration: duration,
+        ));
+  }
+
+  @override
   Future<void> addPlaceOption(String appointmentId, Place place) async {
     _update(appointmentId, (a) => a.placeOptions.any((o) => o.value.name == place.name)
         ? a
@@ -232,6 +258,8 @@ class MockAppointmentRepository extends AppointmentRepository {
               groupId: local.groupId,
               imageAsset: local.imageAsset,
               createdAt: local.createdAt,
+              timeVoteSettings: local.timeVoteSettings,
+              voteDuration: local.voteDuration,
             );
     }
     notifyListeners();

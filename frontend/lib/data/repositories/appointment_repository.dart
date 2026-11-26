@@ -5,6 +5,7 @@ import '../models/decision_template.dart';
 import '../models/group.dart';
 import '../models/participant.dart';
 import '../models/place.dart';
+import '../models/vote_settings.dart';
 
 /// 화면은 이 인터페이스만 안다.
 /// 서버에 있는 기능은 [ApiAppointmentRepository]가, 아직 없는 기능은 [MockAppointmentRepository]가 맡는다.
@@ -57,6 +58,18 @@ abstract class AppointmentRepository extends ChangeNotifier {
   Future<void> clearMyPlaceVotes(String appointmentId);
 
   Future<void> addTimeOption(String appointmentId, DateTime time);
+
+  /// 시간 "바로 정하기" — 약속장이 투표 없이 시간을 확정한다.
+  /// 서버에서는 확정 API에 시간 값을 넘기면 후보로 추가한 뒤 바로 확정한다(요청 1번).
+  Future<void> decideTime(String appointmentId, DateTime time);
+
+  /// 시간 "투표로 정하기" — 후보와 투표 설정을 한 번에 올려 투표를 연다.
+  Future<void> startTimeVote(
+    String appointmentId, {
+    required List<DateTime> times,
+    required VoteSettings settings,
+    required VoteDuration duration,
+  });
   Future<void> addPlaceOption(String appointmentId, Place place);
 
   /// 투표 종료하기 — 1위 후보로 그 항목을 확정한다. 시간·장소가 모두 정해지면 약속이 확정된다.

@@ -19,6 +19,7 @@ import '../../data/models/place.dart';
 import '../../data/repositories/appointment_repository.dart';
 import '../../data/repositories/live_location_repository.dart';
 import '../live_map/open_live_map.dart';
+import 'time_vote_page.dart';
 import 'widgets/arrival_row.dart';
 import 'widgets/vote_card.dart';
 import 'widgets/time_sheet.dart';
@@ -132,12 +133,17 @@ class _AppointmentPageState extends State<AppointmentPage> {
       ],
       hasVoted: a.timeOptions.any((o) => o.votedBy(me)),
       selected: _pickedTimes,
-      onSelect: (id) => setState(() => _pickedTimes.contains(id) ? _pickedTimes.remove(id) : _pickedTimes.add(id)),
+      onSelect: (id) => setState(() {
+        if (_pickedTimes.remove(id)) return;
+        // 복수선택이 꺼져 있으면 하나만 고른다.
+        if (!a.timeVoteSettings.multiple) _pickedTimes.clear();
+        _pickedTimes.add(id);
+      }),
       onVote: () {
         repo.voteTimes(a.id, {..._pickedTimes});
         setState(_pickedTimes.clear);
       },
-      onAdd: () => _addTime(a),
+      onAdd: () => _addTimeOption(a),
       onClose: () => _close(a, time: true),
       onRevote: () => repo.clearMyTimeVotes(a.id),
       pendingVoters: a.pendingVotersOf(a.timeOptions),
@@ -216,8 +222,25 @@ class _AppointmentPageState extends State<AppointmentPage> {
     ]);
   }
 
+  /// 시간 정하기. 약속장은 바로 정하기/투표로 정하기 중 고르고, 참여자는 투표로만 정한다(확정은 약속장만).
   Future<void> _addTime(Appointment a) async {
-    final time = await showTimeSheet(context);
+    final repo = context.read<AppointmentRepository>();
+    final method = a.isHost(repo.me.id) ? await showDecideMethodSheet(context) : DecideMethod.vote;
+    if (method == null || !mounted) return;
+    switch (method) {
+      case DecideMethod.direct:
+        final time = await showDecideTimeSheet(context);
+        if (time != null) await repo.decideTime(a.id, time);
+      case DecideMethod.vote:
+        final draft = await openTimeVotePage(context, initialDuration: a.voteDuration);
+        if (draft != null) await repo.startTimeVote(a.id, times: draft.times, settings: draft.settings, duration: draft.duration);
+    }
+  }
+
+  /// 투표 중 후보 하나 더하기.
+  Future<void> _addTimeOption(Appointment a) async {
+    final last = a.timeOptions.lastOrNull?.value;
+    final time = await showDecideTimeSheet(context, title: '항목 추가', initial: last?.add(const Duration(days: 1)));
     if (time == null || !mounted) return;
     await context.read<AppointmentRepository>().addTimeOption(a.id, time);
   }

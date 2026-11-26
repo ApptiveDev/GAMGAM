@@ -26,6 +26,13 @@ abstract final class GamColors {
   static const searchChipText = Color(0xFF8E9DA4);
   static const searchSortBorder = Color(0xFF6C92AD);
 
+  /// 시간 정하기: 고른 날짜·시간 칩과 달력의 파란색.
+  static const pickBlue = Color(0xFF5C9BE8);
+  static const pickBlueSoft = Color(0xFFE5EEFB);
+
+  /// 시트 오른쪽 위 완료(✓) 버튼.
+  static const doneButton = Color(0xFFC9CAD2);
+
   static const surface = Color(0xFFF0F1F6);
   static const surfaceSoft = Color(0xFFF0F0F4);
   static const countPill = Color(0xFFEBECEE);
