@@ -55,6 +55,22 @@ public class Appointment {
     @CreatedDate @Column(nullable = false, updatable = false)
     private Instant createdAt;
 
+    @ElementCollection
+    @CollectionTable(name = "appointment_poll_settings", joinColumns = @JoinColumn(name = "appointment_id"))
+    @MapKeyEnumerated(EnumType.STRING)
+    @MapKeyColumn(name = "vote_type")
+    private java.util.Map<com.gamgam.backend.appointment.vo.VoteType, com.gamgam.backend.appointment.vo.PollSettings> polls = new java.util.EnumMap<>(com.gamgam.backend.appointment.vo.VoteType.class);
+    @Column(length = 2048) private String coverImageUrl;
+    @Column(length = 1000) private String cardText;
+    @Column(length = 30) private String cardStyle;
+    public com.gamgam.backend.appointment.vo.PollSettings poll(com.gamgam.backend.appointment.vo.VoteType type) {
+        return polls.getOrDefault(type, new com.gamgam.backend.appointment.vo.PollSettings());
+    }
+    public com.gamgam.backend.appointment.vo.PollSettings mutablePoll(com.gamgam.backend.appointment.vo.VoteType type) {
+        return polls.computeIfAbsent(type, ignored -> new com.gamgam.backend.appointment.vo.PollSettings());
+    }
+    public void decorate(String image, String text, String style) { coverImageUrl = image; cardText = text; cardStyle = style; }
+
     @Builder
     public Appointment(String id, String name, String roomId, String hostId, String inviteCode,
                        AppointmentTemplate template, List<OffsetDateTime> candidatesTime,

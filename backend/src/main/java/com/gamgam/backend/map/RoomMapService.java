@@ -29,6 +29,7 @@ public class RoomMapService {
         this.userRepository = userRepository;
     }
 
+    @org.springframework.transaction.annotation.Transactional(readOnly = true)
     public RoomMapResponse getMap(String roomId, String currentUserId, double latitude, double longitude) {
         var appointment = findAppointment(roomId);
         requireMember(roomId, currentUserId);
@@ -37,6 +38,7 @@ public class RoomMapService {
         Instant freshnessCutoff = Instant.now().minusSeconds(60);
         var participants = liveLocationRepository.findByRoomIdAndSharingEnabledTrue(roomId).stream()
                 .filter(location -> location.updatedAt().isAfter(freshnessCutoff))
+                .filter(location -> memberRepository.existsByAppointmentIdAndUserId(roomId, location.userId()))
                 .map(location -> {
                     boolean self = location.userId().equals(currentUserId);
                     return new RoomMapResponse.Participant(
@@ -53,7 +55,8 @@ public class RoomMapService {
 
     @org.springframework.transaction.annotation.Transactional
     public void updateLocation(String roomId, String userId, LocationUpdateRequest request) {
-        var appointment = findAppointment(roomId);
+        var appointment = appointmentRepository.findByIdForUpdate(roomId)
+                .orElseThrow(() -> new BusinessException(ErrorCode.ROOM_NOT_FOUND));
         requireMember(roomId, userId);
         validateSharingWindow(appointment);
         var user = userRepository.findById(userId)
@@ -86,7 +89,7 @@ public class RoomMapService {
         if (appointment.getStatus() != AppointmentStatus.CONFIRMED || appointment.getConfirmedTime() == null) {
             throw new BusinessException(ErrorCode.ROOM_ACCESS_DENIED);
         }
-        var policy = appointment.getLocationSharing();
+        var policy = appointment.getLocationSharing() == null ? com.gamgam.backend.appointment.vo.LocationSharingPolicy.defaults() : appointment.getLocationSharing();
         Instant start = appointment.getConfirmedTime().toInstant().minusSeconds(policy.startMinutesBefore() * 60L);
         Instant end = appointment.getConfirmedTime().toInstant().plusSeconds(policy.maxMinutesAfter() * 60L);
         if (Instant.now().isBefore(start) || Instant.now().isAfter(end)) {

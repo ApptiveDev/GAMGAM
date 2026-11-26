@@ -45,12 +45,17 @@ public class GlobalExceptionHandler {
         ));
     }
 
-    @ExceptionHandler(HttpMessageNotReadableException.class)
-    public ResponseEntity<ApiErrorResponse> handleUnreadable(HttpMessageNotReadableException exception) {
+    @ExceptionHandler({HttpMessageNotReadableException.class, org.springframework.web.method.annotation.MethodArgumentTypeMismatchException.class, org.springframework.web.bind.MissingServletRequestParameterException.class, org.springframework.web.method.annotation.HandlerMethodValidationException.class, org.springframework.web.multipart.support.MissingServletRequestPartException.class})
+    public ResponseEntity<ApiErrorResponse> handleUnreadable(Exception exception) {
         return ResponseEntity.badRequest().body(ApiErrorResponse.of(
                 ErrorCode.BAD_REQUEST.name(),
                 ErrorCode.BAD_REQUEST.message()
         ));
+    }
+
+    @ExceptionHandler(org.springframework.web.multipart.MaxUploadSizeExceededException.class)
+    public ResponseEntity<ApiErrorResponse> handleUploadSize(Exception exception) {
+        return ResponseEntity.status(413).body(ApiErrorResponse.of("PAYLOAD_TOO_LARGE", "Image must be at most 5 MB."));
     }
 
     @ExceptionHandler(Exception.class)

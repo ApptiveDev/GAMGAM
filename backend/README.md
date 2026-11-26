@@ -2,6 +2,8 @@
 
 Java 21, Spring Boot 4.1.1, Spring Web MVC, Bean Validation, Spring Data JPA를 사용합니다. 기본 로컬 DB는 H2이며 PostgreSQL용 프로필도 제공합니다.
 
+화면별 API와 프론트 연동 예제는 [API.md](API.md)를 참고하세요. 홈/모임 필터, 방 초대, 투표 설정·마감·선물 추첨, 후보 수정·삭제, 장소 검색·추천, 도착 현황·콕 찌르기, 이미지 업로드와 카드 꾸미기를 지원합니다.
+
 ## 실행 및 테스트
 
 `backend` 디렉터리에서 실행합니다.
@@ -101,7 +103,7 @@ Java 21, Spring Boot 4.1.1, Spring Web MVC, Bean Validation, Spring Data JPA를 
 - 시간·장소 표가 모두 없고 상관없이 참여도 꺼져 있으면 일반 참여자의 멤버·투표 기록을 제거합니다.
 - 방장은 투표를 모두 취소해도 `HOST` 멤버로 유지됩니다. 다만 실제 표나 상관없이 참여 표시가 없으면 투표 응답의 참여자 목록에는 포함되지 않습니다.
 - 상관없이 참여를 켜면 내 시간·장소 표를 모두 지웁니다. 특정 후보에 투표하면 상관없이 참여가 해제됩니다. 상관없이 참여자는 특정 후보의 득표수에 합산하지 않습니다.
-- 후보는 기존 목록 뒤에 추가하며 삭제·재정렬 API는 없습니다.
+- 후보는 기존 목록 뒤에 추가합니다. 호스트의 수정·삭제 API는 [API.md](API.md)를 참고하세요. 재정렬 API는 없습니다.
 - 시간 후보는 미래 시각과 시간대가 필요합니다. 마이크로초 정밀도로 반올림하며 같은 순간의 후보는 409 `DUPLICATE_CANDIDATE`입니다.
 - 장소 이름은 앞뒤 공백을 제거합니다. 이름의 대소문자·앞뒤 공백을 제외하고 이름과 좌표가 모두 같으면 중복입니다.
 - `COORDINATING` 상태에서 해당 템플릿이 조율하는 항목만 투표·후보 추가가 가능합니다. 확정된 항목의 투표 변경·후보 추가는 막습니다.
@@ -197,7 +199,7 @@ Java 21, Spring Boot 4.1.1, Spring Web MVC, Bean Validation, Spring Data JPA를 
 
 제품 방향은 **방으로 초대하고 약속은 방 안에서 투표로 참여**하는 것입니다. 기존 약속 초대 코드와 가입 API 정리는 별도 논의 대상으로 남아 있습니다.
 
-현재 `POST /api/v1/appointments/join`은 `{"inviteCode":"..."}`를 받아 약속 멤버를 등록하는 기존 API입니다. `inviteCode` 생성·조회와 응답 필드, `{app.share.base-url}/appointments/{id}` 형태의 `shareUrl`도 남아 있습니다. 방 초대·가입 API는 아직 구현되어 있지 않습니다.
+현재 `POST /api/v1/appointments/join`은 `{"inviteCode":"..."}`를 받아 약속 멤버를 등록하는 기존 API입니다. `inviteCode` 생성·조회와 응답 필드, `{app.share.base-url}/invite/{code}` 형태의 `shareUrl`도 남아 있습니다. 새 방 초대·가입은 `/rooms/{roomId}/invite`, `/rooms/join`을 사용합니다. 링크 폐기와 권한 정책은 [API.md](API.md)를 참고하세요.
 
 ## 위치 공유와 지도
 
@@ -206,7 +208,7 @@ Java 21, Spring Boot 4.1.1, Spring Web MVC, Bean Validation, Spring Data JPA를 
 | GET | `/api/v1/rooms/{roomId}/map` | 쿼리 `latitude`, `longitude` |
 | PUT | `/api/v1/rooms/{roomId}/location` | `latitude`, `longitude`, `sharingEnabled`, 선택적으로 `shareLevel`, `speedKmh`, `transport` |
 
-현재 지도 API의 경로 변수 이름은 `roomId`이지만 서비스는 이를 **약속 ID**로 조회합니다. 호출할 때 약속 ID를 넣어야 합니다. 약속 멤버이며 약속이 `CONFIRMED` 상태이고 위치 공유 시간 범위 안에 있어야 합니다.
+새 지도 API는 `/appointments/{id}/map`, `/appointments/{id}/location`입니다. 호환용 기존 API의 `roomId` 역시 **약속 ID**로 조회합니다. 약속 멤버이며 약속이 `CONFIRMED` 상태이고 위치 공유 시간 범위 안에 있어야 합니다.
 
 `locationSharing.startMinutesBefore`, `maxMinutesAfter`는 각각 0~240분이며 기본값은 각각 30분입니다. 객체나 필드를 생략하면 기본값을 적용합니다.
 

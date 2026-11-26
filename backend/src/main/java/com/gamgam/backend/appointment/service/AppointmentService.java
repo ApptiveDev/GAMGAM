@@ -47,12 +47,15 @@ public class AppointmentService {
     private final ShareLinkGenerator shareLinkGenerator;
     private final RoomAccess rooms;
     private final AppointmentParticipationService participation;
+    private final com.gamgam.backend.media.MediaService media;
 
     @Transactional
     public AppointmentResponse create(String roomId, String userId, CreateAppointmentRequest request) {
         if (roomId == null || roomId.isBlank()) throw new BusinessException(ErrorCode.BAD_REQUEST);
         rooms.requireMember(roomId, userId);
         User host = findUser(userId);
+        if (request.confirmedPlace() != null) media.validateReference(userId, request.confirmedPlace().imageUrl());
+        if (request.candidatesPlace() != null) request.candidatesPlace().forEach(p -> media.validateReference(userId, p.imageUrl()));
         Place confirmedPlace = request.confirmedPlace() == null ? null : request.confirmedPlace().toDomain();
         PenaltyRule penalty = request.penalty() == null ? null : request.penalty().toDomain();
         RewardRule reward = request.reward() == null ? null : request.reward().toDomain();
@@ -157,6 +160,8 @@ public class AppointmentService {
         if (candidateId == null || candidateId.isBlank()) {
             throw new BusinessException(ErrorCode.INVALID_VOTE_OPTION);
         }
+        if (time && appointment.getCandidatesTime().stream().anyMatch(c -> c.getCandidateId().equals(candidateId) && !c.getTime().isAfter(java.time.OffsetDateTime.now())))
+            throw new BusinessException(ErrorCode.BAD_REQUEST);
         if (time) appointment.confirmTime(candidateId);
         else appointment.confirmPlace(candidateId);
     }
@@ -245,6 +250,8 @@ public class AppointmentService {
         Map<String, List<String>> placeVotes = new LinkedHashMap<>();
         allVotes.stream().filter(vote -> vote.getType() == VoteType.PLACE).forEach(vote ->
                 placeVotes.computeIfAbsent(vote.getCandidateId(), ignored -> new ArrayList<>()).add(vote.getUserId()));
+        if (appointment.poll(VoteType.TIME).isAnonymous()) timeVotes.clear();
+        if (appointment.poll(VoteType.PLACE).isAnonymous()) placeVotes.clear();
         return AppointmentResponse.of(appointment, shareLinkGenerator.create(appointment.getInviteCode()),
                 members, timeVotes, placeVotes);
     }
