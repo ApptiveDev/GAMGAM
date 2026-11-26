@@ -7,7 +7,7 @@
 ## 공통
 
 - 기본 경로: `/api/v1`. 로그인/가입/health 외에는 JWT Bearer 토큰이 필요합니다.
-- 성공: `{"success":true,"data":...}`. 오류: `{"success":false,"code":"...","message":"..."}`.
+- 성공: `{"success":true,"data":...}`. 오류: `{"success":false,"code":"...","message":"...","fieldErrors":{}}`.
 - enum은 대문자입니다. `TIME`, `PLACE`, `FRIENDS` 등.
 - 후보와 참여자는 화면 인덱스 대신 응답의 UUID를 사용합니다.
 - 날짜 요청은 오프셋을 포함한 ISO 8601, 응답 시간은 KST(+09:00) 또는 UTC Instant입니다.
@@ -159,7 +159,7 @@ appearance는 전체 교체이므로 null/생략으로 해당 값을 지울 수 
 추천 쿼리: `context=ALL|SENIOR|COLLEAGUES|FRIENDS|RECENT`, `query`, `latitude`, `longitude`,
 `limit=20`(1~100), `refresh=false`.
 맥락별 추천은 사용자가 해당 맥락으로 저장한 장소를 사용합니다. ALL/RECENT에서는 접근 가능한
-같은 방의 장소 기록도 포함합니다. RECENT는 저장/약속 생성 최신순, 좌표가 있으면 그 외 맥락은 거리순입니다.
+같은 방의 장소 기록도 포함합니다. RECENT는 개인 저장 최신순 뒤에 약속 생성 최신순 기록을 추가해 중복 제거합니다. 두 출처를 통합한 시각순 정렬은 아닙니다. 좌표가 있으면 RECENT 외 맥락은 거리순입니다.
 `refresh=true`는 후보를 섞습니다. 저장/기록이 없다면 빈 목록이며 목업 장소를 삽입하지 않습니다.
 추천의 `estimatedWalkMinutes`는 직선거리와 80m/분으로 계산한 참고값이며 도로 경로 기반 ETA가 아닙니다.
 

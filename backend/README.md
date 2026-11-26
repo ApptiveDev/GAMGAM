@@ -4,6 +4,8 @@ Java 21, Spring Boot 4.1.1, Spring Web MVC, Bean Validation, Spring Data JPA를 
 
 화면별 API와 프론트 연동 예제는 [API.md](API.md)를 참고하세요. 홈/모임 필터, 방 초대, 투표 설정·마감·선물 추첨, 후보 수정·삭제, 장소 검색·추천, 도착 현황·콕 찌르기, 이미지 업로드와 카드 꾸미기를 지원합니다.
 
+신규 32개 API의 요청·응답 필드, 권한, 오류 조건은 [API-REFERENCE.md](API-REFERENCE.md)에 정리했습니다. 전체 61개 API의 팀 명세는 [Notion API 명세](https://app.notion.com/p/2afe3d4189a582beb26a01458d70ed26)에서 관리합니다. 구현 완료와 운영 배포 여부는 별개입니다.
+
 ## 실행 및 테스트
 
 `backend` 디렉터리에서 실행합니다.
