@@ -1,0 +1,49 @@
+name: Build GAMGAM beta
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '21'
+
+      - name: Build Spring Boot
+        working-directory: backend
+        run: bash gradlew bootJar --no-daemon
+
+      - uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+
+      - name: Build Flutter web
+        working-directory: frontend
+        run: |
+          flutter --version
+          flutter pub get
+          flutter build web --release
+
+      - name: Prepare deployment files
+        run: |
+          mkdir -p package/web
+          jar=$(find backend/build/libs -maxdepth 1 -name '*.jar' ! -name '*-plain.jar' -print -quit)
+          cp "$jar" package/app.jar
+          cp -a frontend/build/web/. package/web/
+          tar -C package -czf gamgam-beta.tar.gz .
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: gamgam-beta
+          path: gamgam-beta.tar.gz
+          retention-days: 7
