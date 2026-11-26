@@ -5,6 +5,7 @@ import '../../../core/theme/gam_text.dart';
 import '../../../core/widgets/gam/gam_icon.dart';
 import '../../../data/mock/mock_data.dart';
 import '../../../data/models/place.dart';
+import '../place_picker_page.dart';
 import 'time_pick_parts.dart';
 import 'vote_card.dart';
 
@@ -15,7 +16,7 @@ Future<Place?> showDecidePlaceSheet(
   BuildContext context, {
   Place? initial,
   String title = '장소 정하기',
-  VoidCallback? onMore,
+  bool showMore = true,
 }) =>
     showModalBottomSheet<Place>(
       context: context,
@@ -23,17 +24,17 @@ Future<Place?> showDecidePlaceSheet(
       backgroundColor: GamColors.pickSheet,
       barrierColor: GamColors.sheetBarrier,
       shape: const RoundedRectangleBorder(borderRadius: BorderRadius.vertical(top: Radius.circular(36))),
-      builder: (sheet) => _DecidePlaceSheet(initial: initial, title: title, onMore: onMore),
+      builder: (sheet) => _DecidePlaceSheet(initial: initial, title: title, showMore: showMore),
     );
 
 TextStyle _medium(double size, [Color color = GamColors.text900]) => GamText.body16.copyWith(fontSize: size, color: color);
 
 class _DecidePlaceSheet extends StatefulWidget {
-  const _DecidePlaceSheet({required this.initial, required this.title, required this.onMore});
+  const _DecidePlaceSheet({required this.initial, required this.title, required this.showMore});
 
   final Place? initial;
   final String title;
-  final VoidCallback? onMore;
+  final bool showMore;
 
   @override
   State<_DecidePlaceSheet> createState() => _DecidePlaceSheetState();
@@ -74,6 +75,16 @@ class _DecidePlaceSheetState extends State<_DecidePlaceSheet> {
           _typed.text = place.name;
         }
       });
+
+  /// "자세히 >": 추천 장소 페이지에서 하나 고르면 위 칸에 넣는다.
+  Future<void> _more() async {
+    final place = await openRecommendPlaces(context, added: {if (_picked != null) _picked!.name});
+    if (place == null || !mounted) return;
+    setState(() {
+      _picked = place;
+      _typed.text = place.name;
+    });
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -167,9 +178,9 @@ class _DecidePlaceSheetState extends State<_DecidePlaceSheet> {
         padding: const EdgeInsets.fromLTRB(10, 10, 7, 10),
         child: Row(crossAxisAlignment: CrossAxisAlignment.end, children: [
           Expanded(child: Text('추천 장소', style: GamText.section16)),
-          if (widget.onMore != null)
+          if (widget.showMore)
             GestureDetector(
-              onTap: widget.onMore,
+              onTap: _more,
               behavior: HitTestBehavior.opaque,
               child: Row(children: [
                 Text('자세히', style: _medium(13, GamColors.text500).copyWith(height: 1.3)),

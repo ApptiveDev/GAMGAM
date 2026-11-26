@@ -1,3 +1,5 @@
+import 'dart:ui' show ImageFilter;
+
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:provider/provider.dart';
@@ -11,12 +13,23 @@ import '../../data/models/place.dart';
 import '../../data/repositories/appointment_repository.dart';
 import 'appointment_page.dart';
 
-/// 장소정하기. 분류를 고르거나 검색해서 장소를 투표 후보로 올린다.
+/// 추천 장소에서 하나 골라 돌려준다. 고르지 않으면 null.
+typedef PickRecommendedPlace = Future<Place?> Function(BuildContext context);
+
+/// 추천 장소 페이지를 "하나 고르기"로 연다. ⊕를 누르면 그 장소를 돌려주며 닫힌다.
+/// [added]에 있는 이름은 이미 고른 것으로 보여준다.
+Future<Place?> openRecommendPlaces(BuildContext context, {Set<String> added = const {}}) =>
+    Navigator.of(context).push<Place>(MaterialPageRoute(builder: (_) => PlacePickerPage(added: added)));
+
+/// 추천 장소. 분류를 고르거나 검색해서 장소를 고른다. (Figma 1720:17168, 검색 1573:22540)
+/// [appointmentId]가 있으면 ⊕로 그 약속의 투표 후보에 바로 올리고(투표 중 "더보기"),
+/// 없으면 하나 골라 돌려준다([openRecommendPlaces]).
 /// 지금은 목업 장소 목록이고, 나중에 현재 위치 기준 주변 장소 검색이 들어온다.
 class PlacePickerPage extends StatefulWidget {
-  const PlacePickerPage({super.key, required this.appointmentId});
+  const PlacePickerPage({super.key, this.appointmentId, this.added = const {}});
 
-  final String appointmentId;
+  final String? appointmentId;
+  final Set<String> added;
 
   @override
   State<PlacePickerPage> createState() => _PlacePickerPageState();
@@ -54,8 +67,9 @@ class _PlacePickerPageState extends State<PlacePickerPage> {
 
   @override
   Widget build(BuildContext context) {
-    final repo = context.watch<AppointmentRepository>();
-    final added = {...?repo.findById(widget.appointmentId)?.placeOptions.map((o) => o.value.name)};
+    final id = widget.appointmentId;
+    final added =
+        id == null ? widget.added : {...?context.watch<AppointmentRepository>().findById(id)?.placeOptions.map((o) => o.value.name)};
     final places = _places;
 
     return PinkFrame(
@@ -64,7 +78,7 @@ class _PlacePickerPageState extends State<PlacePickerPage> {
         Column(children: [
           FrameTopBar(
             leading: GamIconButton('ic_arrow_left_dark', tooltip: '뒤로', onTap: () => context.pop()),
-            middle: Padding(padding: const EdgeInsets.only(left: 2), child: Text('장소 정하기', style: GamText.body16)),
+            middle: Padding(padding: const EdgeInsets.only(left: 2), child: Text('추천 장소', style: GamText.body16)),
             // 현재 위치로 보기는 지도 담당 화면과 함께 붙인다.
             trailing: const Padding(padding: EdgeInsets.all(11), child: GamIcon('ic_crosshair', size: 22)),
           ),
@@ -122,13 +136,18 @@ class _PlacePickerPageState extends State<PlacePickerPage> {
           bottom: 0,
           height: 213,
           child: IgnorePointer(
-            child: DecoratedBox(
-              decoration: BoxDecoration(
-                gradient: LinearGradient(
-                  begin: Alignment.topCenter,
-                  end: Alignment.bottomCenter,
-                  colors: [Colors.white.withValues(alpha: 0), Colors.white.withValues(alpha: 0.9)],
-                  stops: const [0.479, 0.896],
+            child: ClipRect(
+              child: BackdropFilter(
+                filter: ImageFilter.blur(sigmaX: 1, sigmaY: 1),
+                child: DecoratedBox(
+                  decoration: BoxDecoration(
+                    gradient: LinearGradient(
+                      begin: Alignment.topCenter,
+                      end: Alignment.bottomCenter,
+                      colors: [Colors.white.withValues(alpha: 0), Colors.white.withValues(alpha: 0.9)],
+                      stops: const [0.479, 0.896],
+                    ),
+                  ),
                 ),
               ),
             ),
@@ -165,6 +184,14 @@ class _PlacePickerPageState extends State<PlacePickerPage> {
                     ),
                   ),
                 ),
+                if (_query.text.isNotEmpty)
+                  GestureDetector(
+                    onTap: _query.clear,
+                    child: const Padding(
+                      padding: EdgeInsets.only(left: 8),
+                      child: GamIcon('ic_x', size: 22, color: GamColors.text400),
+                    ),
+                  ),
               ]),
             ),
           ),
@@ -174,7 +201,12 @@ class _PlacePickerPageState extends State<PlacePickerPage> {
   }
 
   Future<void> _add(Place place) async {
-    await context.read<AppointmentRepository>().addPlaceOption(widget.appointmentId, place);
+    final id = widget.appointmentId;
+    if (id == null) {
+      Navigator.of(context).pop(place);
+      return;
+    }
+    await context.read<AppointmentRepository>().addPlaceOption(id, place);
     if (!mounted) return;
     ScaffoldMessenger.of(context)
       ..hideCurrentSnackBar()

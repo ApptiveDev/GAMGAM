@@ -254,22 +254,17 @@ class _AppointmentPageState extends State<AppointmentPage> {
     if (method == null || !mounted) return;
     switch (method) {
       case DecideMethod.direct:
-        final place = await showDecidePlaceSheet(context, onMore: () => context.push(AppRoutes.pickPlace(a.id)));
+        final place = await showDecidePlaceSheet(context);
         if (place != null) await repo.decidePlace(a.id, place);
       case DecideMethod.vote:
-        final draft = await openPlaceVotePage(
-          context,
-          initialDuration: a.voteDuration,
-          // 추천장소 페이지가 생기기 전까지는 장소 시트의 추천 목록에서 고른다.
-          onRecommend: (ctx) => showDecidePlaceSheet(ctx, title: '추천 장소'),
-        );
+        final draft = await openPlaceVotePage(context, initialDuration: a.voteDuration);
         if (draft != null) await repo.startPlaceVote(a.id, places: draft.places, settings: draft.settings, duration: draft.duration);
     }
   }
 
   /// 투표 중 장소 후보 하나 더하기. 시간의 "항목 추가"와 같이 장소 시트를 연다.
   Future<void> _addPlaceOption(Appointment a) async {
-    final place = await showDecidePlaceSheet(context, title: '항목 추가', onMore: () => context.push(AppRoutes.pickPlace(a.id)));
+    final place = await showDecidePlaceSheet(context, title: '항목 추가');
     if (place == null || !mounted) return;
     await _addPlace(a, place);
   }

@@ -7,6 +7,7 @@ import '../../core/theme/gam_text.dart';
 import '../../core/widgets/gam/pink_frame.dart';
 import '../../data/models/place.dart';
 import '../../data/models/vote_settings.dart';
+import 'place_picker_page.dart';
 import 'widgets/time_pick_parts.dart';
 import 'widgets/vote_settings_parts.dart';
 
@@ -19,9 +20,6 @@ class PlaceVoteDraft {
   final VoteSettings settings;
   final VoteDuration duration;
 }
-
-/// 추천 장소에서 하나 골라 돌려준다. 고르지 않으면 null.
-typedef PickRecommendedPlace = Future<Place?> Function(BuildContext context);
 
 /// 장소 "투표로 정하기" 페이지를 연다. 닫으면 null.
 /// 초기값을 넘기면 그 상태로 시작한다(약속 수정에서 재사용).
@@ -57,7 +55,7 @@ class PlaceVotePage extends StatefulWidget {
   final VoteSettings initialSettings;
   final VoteDuration initialDuration;
 
-  /// null이면 "추천 장소 보기"를 숨긴다.
+  /// 추천 장소 보기. 비우면 추천 장소 페이지를 연다.
   final PickRecommendedPlace? onRecommend;
 
   @override
@@ -145,8 +143,7 @@ class _PlaceVotePageState extends State<PlaceVotePage> {
                     ),
                   ],
                 ),
-                if (widget.onRecommend != null)
-                  Positioned(left: 0, right: 0, bottom: 0, child: _RecommendDock(onTap: _recommend)),
+                Positioned(left: 0, right: 0, bottom: 0, child: _RecommendDock(onTap: _recommend)),
               ]),
             ),
           ]),
@@ -189,7 +186,8 @@ class _PlaceVotePageState extends State<PlaceVotePage> {
 
   Future<void> _recommend() async {
     FocusScope.of(context).unfocus();
-    final place = await widget.onRecommend!(context);
+    final pick = widget.onRecommend ?? (ctx) => openRecommendPlaces(ctx, added: {for (final c in _candidates) c.name});
+    final place = await pick(context);
     if (place == null || !mounted) return;
     if (_candidates.any((c) => c.name == place.name)) {
       ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('${place.name}은(는) 이미 후보에 있어요')));
