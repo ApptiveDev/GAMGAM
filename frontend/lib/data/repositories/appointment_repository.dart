@@ -72,6 +72,14 @@ abstract class AppointmentRepository extends ChangeNotifier {
   });
   Future<void> addPlaceOption(String appointmentId, Place place);
 
+  /// 장소 "투표로 정하기" — 후보와 투표 설정을 한 번에 올려 투표를 연다.
+  Future<void> startPlaceVote(
+    String appointmentId, {
+    required List<Place> places,
+    required VoteSettings settings,
+    required VoteDuration duration,
+  });
+
   /// 장소 "바로 정하기" — 약속장이 투표 없이 장소를 확정한다.
   Future<void> decidePlace(String appointmentId, Place place);
 

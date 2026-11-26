@@ -28,6 +28,7 @@ class Appointment {
     this.imageAsset,
     this.createdAt,
     this.timeVoteSettings = const VoteSettings(),
+    this.placeVoteSettings = const VoteSettings(),
     this.voteDuration = VoteDuration.min30,
   });
 
@@ -65,6 +66,9 @@ class Appointment {
 
   /// 시간 투표 설정 (복수선택·익명·후보 추가 허용).
   final VoteSettings timeVoteSettings;
+
+  /// 장소 투표 설정.
+  final VoteSettings placeVoteSettings;
 
   /// 투표 진행 시간. 시간·장소 투표가 함께 쓴다.
   final VoteDuration voteDuration;
@@ -127,6 +131,7 @@ class Appointment {
     String? groupId,
     String? imageAsset,
     VoteSettings? timeVoteSettings,
+    VoteSettings? placeVoteSettings,
     VoteDuration? voteDuration,
   }) =>
       Appointment(
@@ -149,6 +154,7 @@ class Appointment {
         imageAsset: imageAsset ?? this.imageAsset,
         createdAt: createdAt,
         timeVoteSettings: timeVoteSettings ?? this.timeVoteSettings,
+        placeVoteSettings: placeVoteSettings ?? this.placeVoteSettings,
         voteDuration: voteDuration ?? this.voteDuration,
       );
 }

@@ -194,6 +194,21 @@ class MockAppointmentRepository extends AppointmentRepository {
   }
 
   @override
+  Future<void> startPlaceVote(
+    String appointmentId, {
+    required List<Place> places,
+    required VoteSettings settings,
+    required VoteDuration duration,
+  }) async {
+    await Future.delayed(_latency);
+    _update(appointmentId, (a) => a.copyWith(
+          placeOptions: [for (final (i, p) in places.indexed) PlaceOption(id: 'p$i-${p.name.hashCode}', value: p)],
+          placeVoteSettings: settings,
+          voteDuration: duration,
+        ));
+  }
+
+  @override
   Future<void> decidePlace(String appointmentId, Place place) async {
     await Future.delayed(_latency);
     _update(appointmentId, (a) {
@@ -271,6 +286,7 @@ class MockAppointmentRepository extends AppointmentRepository {
               imageAsset: local.imageAsset,
               createdAt: local.createdAt,
               timeVoteSettings: local.timeVoteSettings,
+              placeVoteSettings: local.placeVoteSettings,
               voteDuration: local.voteDuration,
             );
     }

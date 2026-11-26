@@ -127,6 +127,16 @@ void main() {
     expect(closed.confirmedTime, isNotNull);
     expect(closed.status, AppointmentStatus.coordinating, reason: '장소가 아직 안 정해졌다');
     expect(find.text('어디서 만날까요?'), findsOneWidget);
+
+    // 장소도 투표로 정한다: 빈 줄에 이름을 쓰고 ✓.
+    await tapText(tester, '장소 정하기');
+    await tester.tap(find.text('투표로 정하기'));
+    await tester.pumpAndSettle();
+    await tester.enterText(find.byType(TextField), '학교 앞 카페');
+    await tester.pump();
+    await tester.tap(find.byTooltip('완료'));
+    await settle(tester);
+    expect(repo.findById(created.id)!.placeOptions.map((o) => o.value.name), ['학교 앞 카페']);
   });
 
   testWidgets('장소 투표 → 확정되면 확정 화면', (tester) async {

@@ -19,6 +19,7 @@ import '../../data/models/place.dart';
 import '../../data/repositories/appointment_repository.dart';
 import '../../data/repositories/live_location_repository.dart';
 import '../live_map/open_live_map.dart';
+import 'place_vote_page.dart';
 import 'time_vote_page.dart';
 import 'widgets/arrival_row.dart';
 import 'widgets/place_sheet.dart';
@@ -247,7 +248,6 @@ class _AppointmentPageState extends State<AppointmentPage> {
   }
 
   /// 장소 정하기. 시간과 같이 약속장은 바로 정하기/투표로 정하기 중 고르고, 참여자는 투표로만 정한다.
-  /// 투표로 정하기 페이지(Figma 1573:23153)는 아직이라 기존 장소 고르기 화면으로 간다.
   Future<void> _decidePlace(Appointment a) async {
     final repo = context.read<AppointmentRepository>();
     final method = a.isHost(repo.me.id) ? await showDecideMethodSheet(context) : DecideMethod.vote;
@@ -257,7 +257,13 @@ class _AppointmentPageState extends State<AppointmentPage> {
         final place = await showDecidePlaceSheet(context, onMore: () => context.push(AppRoutes.pickPlace(a.id)));
         if (place != null) await repo.decidePlace(a.id, place);
       case DecideMethod.vote:
-        await context.push(AppRoutes.pickPlace(a.id));
+        final draft = await openPlaceVotePage(
+          context,
+          initialDuration: a.voteDuration,
+          // 추천장소 페이지가 생기기 전까지는 장소 시트의 추천 목록에서 고른다.
+          onRecommend: (ctx) => showDecidePlaceSheet(ctx, title: '추천 장소'),
+        );
+        if (draft != null) await repo.startPlaceVote(a.id, places: draft.places, settings: draft.settings, duration: draft.duration);
     }
   }
 
