@@ -194,6 +194,18 @@ class MockAppointmentRepository extends AppointmentRepository {
   }
 
   @override
+  Future<void> decidePlace(String appointmentId, Place place) async {
+    await Future.delayed(_latency);
+    _update(appointmentId, (a) {
+      final existing = a.placeOptions.any((o) => o.value.name == place.name);
+      final options = existing
+          ? a.placeOptions
+          : [...a.placeOptions, PlaceOption(id: 'p-${place.name.hashCode}', value: place)];
+      return _settle(a.copyWith(placeOptions: options, confirmedPlace: place));
+    });
+  }
+
+  @override
   Future<void> closeTimeVote(String appointmentId) async {
     await Future.delayed(_latency);
     _update(appointmentId, (a) => _settle(a.copyWith(confirmedTime: a.time)));

@@ -21,6 +21,7 @@ import '../../data/repositories/live_location_repository.dart';
 import '../live_map/open_live_map.dart';
 import 'time_vote_page.dart';
 import 'widgets/arrival_row.dart';
+import 'widgets/place_sheet.dart';
 import 'widgets/vote_card.dart';
 import 'widgets/time_sheet.dart';
 
@@ -157,7 +158,7 @@ class _AppointmentPageState extends State<AppointmentPage> {
         title: '어디서 만날까요?',
         subtitle: '우리에게 맞는 장소를 찾아보세요.',
         action: '장소 정하기',
-        onTap: () => context.push(AppRoutes.pickPlace(a.id)),
+        onTap: () => _decidePlace(a),
       );
     }
     final repo = context.read<AppointmentRepository>();
@@ -173,7 +174,7 @@ class _AppointmentPageState extends State<AppointmentPage> {
         repo.votePlace(a.id, _pickedPlace!);
         setState(() => _pickedPlace = null);
       },
-      onAdd: () => context.push(AppRoutes.pickPlace(a.id)),
+      onAdd: () => _addPlaceOption(a),
       onClose: () => _close(a, time: false),
       onRevote: () => repo.clearMyPlaceVotes(a.id),
       pendingVoters: a.pendingVotersOf(a.placeOptions),
@@ -243,6 +244,28 @@ class _AppointmentPageState extends State<AppointmentPage> {
     final time = await showDecideTimeSheet(context, title: '항목 추가', initial: last?.add(const Duration(days: 1)));
     if (time == null || !mounted) return;
     await context.read<AppointmentRepository>().addTimeOption(a.id, time);
+  }
+
+  /// 장소 정하기. 시간과 같이 약속장은 바로 정하기/투표로 정하기 중 고르고, 참여자는 투표로만 정한다.
+  /// 투표로 정하기 페이지(Figma 1573:23153)는 아직이라 기존 장소 고르기 화면으로 간다.
+  Future<void> _decidePlace(Appointment a) async {
+    final repo = context.read<AppointmentRepository>();
+    final method = a.isHost(repo.me.id) ? await showDecideMethodSheet(context) : DecideMethod.vote;
+    if (method == null || !mounted) return;
+    switch (method) {
+      case DecideMethod.direct:
+        final place = await showDecidePlaceSheet(context, onMore: () => context.push(AppRoutes.pickPlace(a.id)));
+        if (place != null) await repo.decidePlace(a.id, place);
+      case DecideMethod.vote:
+        await context.push(AppRoutes.pickPlace(a.id));
+    }
+  }
+
+  /// 투표 중 장소 후보 하나 더하기. 시간의 "항목 추가"와 같이 장소 시트를 연다.
+  Future<void> _addPlaceOption(Appointment a) async {
+    final place = await showDecidePlaceSheet(context, title: '항목 추가', onMore: () => context.push(AppRoutes.pickPlace(a.id)));
+    if (place == null || !mounted) return;
+    await _addPlace(a, place);
   }
 
   Future<void> _addPlace(Appointment a, Place place) async {
