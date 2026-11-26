@@ -34,7 +34,7 @@ class PinkFrame extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) => AnnotatedRegion<SystemUiOverlayStyle>(
-        value: background == FrameBackground.white ? SystemUiOverlayStyle.dark : SystemUiOverlayStyle.light,
+        value: background == FrameBackground.sky ? SystemUiOverlayStyle.light : SystemUiOverlayStyle.dark,
         child: Scaffold(
           backgroundColor: GamColors.pink,
           resizeToAvoidBottomInset: resizeToAvoidBottomInset,
@@ -43,7 +43,11 @@ class PinkFrame extends StatelessWidget {
             child: ClipRRect(
               borderRadius: BorderRadius.circular(radius),
               child: Stack(fit: StackFit.expand, children: [
-                if (background == FrameBackground.white) const ColoredBox(color: Colors.white) else SkyBackground(fadeStart: fadeStart, fadeEnd: fadeEnd, scrollWith: scrollWith),
+                switch (background) {
+                  FrameBackground.white => const ColoredBox(color: Colors.white),
+                  FrameBackground.plain => const ColoredBox(color: GamColors.pickPage),
+                  FrameBackground.sky => SkyBackground(fadeStart: fadeStart, fadeEnd: fadeEnd, scrollWith: scrollWith),
+                },
                 child,
               ]),
             ),
@@ -52,7 +56,8 @@ class PinkFrame extends StatelessWidget {
       );
 }
 
-enum FrameBackground { sky, white }
+/// [plain]은 시간 정하기처럼 회색 바탕 화면.
+enum FrameBackground { sky, white, plain }
 
 /// 하늘 그라데이션 이미지. 화면이 길어도 위쪽 768만 하늘색이고 나머지는 회보라색이다.
 /// Figma는 이 위에 흐림(blur)을 걸지만 바탕이 매끈한 그라데이션이라 결과가 같아서 생략한다.

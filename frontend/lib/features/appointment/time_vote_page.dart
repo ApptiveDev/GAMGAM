@@ -2,6 +2,8 @@ import 'package:flutter/material.dart';
 
 import '../../core/theme/gam_colors.dart';
 import '../../core/theme/gam_text.dart';
+import '../../core/widgets/gam/gam_icon.dart';
+import '../../core/widgets/gam/pink_frame.dart';
 import '../../data/models/vote_settings.dart';
 import 'widgets/time_pick_parts.dart';
 import 'widgets/time_sheet.dart';
@@ -66,12 +68,14 @@ class _TimeVotePageState extends State<TimeVotePage> {
   var _openPart = PickPart.none;
 
   @override
-  Widget build(BuildContext context) => Scaffold(
-        backgroundColor: GamColors.surface,
-        body: SafeArea(
+  Widget build(BuildContext context) => PinkFrame(
+        background: FrameBackground.plain,
+        child: SafeArea(
+          bottom: false,
           child: Column(children: [
+            // Figma: 상태바 아래 높이 68, 좌우 26(분홍 테두리 6 + 20).
             Padding(
-              padding: const EdgeInsets.fromLTRB(14, 8, 14, 0),
+              padding: const EdgeInsets.fromLTRB(20, 16, 20, 17),
               child: PickHeader(
                 title: '시간 정하기',
                 onClose: () => Navigator.of(context).pop(),
@@ -80,16 +84,23 @@ class _TimeVotePageState extends State<TimeVotePage> {
             ),
             Expanded(
               child: ListView(
-                padding: const EdgeInsets.fromLTRB(14, 14, 14, 40),
+                padding: const EdgeInsets.fromLTRB(20, 20, 20, 72),
                 children: [
-                  if (_candidates.isNotEmpty) _candidateCard(),
-                  const SizedBox(height: 10),
+                  if (_candidates.isNotEmpty) ...[_candidateCard(), const SizedBox(height: 10)],
                   _AddButton(onTap: _add),
-                  const SizedBox(height: 22),
-                  _OptionRow(label: '복수선택', on: _settings.multiple, onTap: () => _set(_settings.copyWith(multiple: !_settings.multiple))),
-                  _OptionRow(label: '익명투표', on: _settings.anonymous, onTap: () => _set(_settings.copyWith(anonymous: !_settings.anonymous))),
-                  _OptionRow(label: '선택항목 추가 허용', on: _settings.allowAdd, onTap: () => _set(_settings.copyWith(allowAdd: !_settings.allowAdd))),
-                  _DurationRow(duration: _duration, onTap: _pickDuration),
+                  const SizedBox(height: 16),
+                  Padding(
+                    padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 16),
+                    child: Column(children: [
+                      _OptionRow(label: '복수선택', on: _settings.multiple, onTap: () => _set(_settings.copyWith(multiple: !_settings.multiple))),
+                      const SizedBox(height: 14),
+                      _OptionRow(label: '익명투표', on: _settings.anonymous, onTap: () => _set(_settings.copyWith(anonymous: !_settings.anonymous))),
+                      const SizedBox(height: 14),
+                      _OptionRow(label: '선택항목 추가 허용', on: _settings.allowAdd, onTap: () => _set(_settings.copyWith(allowAdd: !_settings.allowAdd))),
+                      const SizedBox(height: 14),
+                      _DurationRow(duration: _duration, onTap: _pickDuration),
+                    ]),
+                  ),
                 ],
               ),
             ),
@@ -98,13 +109,18 @@ class _TimeVotePageState extends State<TimeVotePage> {
       );
 
   Widget _candidateCard() => Container(
-        padding: const EdgeInsets.symmetric(vertical: 6),
-        decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(20)),
+        decoration: BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.circular(16),
+          border: Border.all(color: GamColors.pickCardBorder),
+        ),
         child: Column(children: [
-          for (final c in _candidates)
+          for (final (i, c) in _candidates.indexed)
             TimeCandidateRow(
               key: c.key,
               value: c.value,
+              first: i == 0,
+              last: i == _candidates.length - 1,
               open: _openKey == c.key ? _openPart : PickPart.none,
               onOpen: (part) => setState(() {
                 _openKey = c.key;
@@ -133,10 +149,10 @@ class _TimeVotePageState extends State<TimeVotePage> {
   Future<void> _pickDuration() async {
     final picked = await showModalBottomSheet<VoteDuration>(
       context: context,
-      backgroundColor: GamColors.surface,
-      showDragHandle: true,
+      backgroundColor: Colors.white,
+      barrierColor: GamColors.sheetBarrier,
       isScrollControlled: true,
-      shape: const RoundedRectangleBorder(borderRadius: BorderRadius.vertical(top: Radius.circular(24))),
+      shape: const RoundedRectangleBorder(borderRadius: BorderRadius.vertical(top: Radius.circular(20))),
       builder: (sheet) => _DurationSheet(selected: _duration),
     );
     if (picked != null) setState(() => _duration = picked);
@@ -148,6 +164,8 @@ class _TimeVotePageState extends State<TimeVotePage> {
   }
 }
 
+TextStyle _medium(double size, [Color color = GamColors.text900]) => GamText.body16.copyWith(fontSize: size, color: color);
+
 class _AddButton extends StatelessWidget {
   const _AddButton({required this.onTap});
 
@@ -156,16 +174,16 @@ class _AddButton extends StatelessWidget {
   @override
   Widget build(BuildContext context) => Material(
         color: Colors.white,
-        borderRadius: BorderRadius.circular(30),
+        shape: const StadiumBorder(side: BorderSide(color: GamColors.pickCardBorder)),
         child: InkWell(
           onTap: onTap,
-          borderRadius: BorderRadius.circular(30),
+          customBorder: const StadiumBorder(),
           child: SizedBox(
-            height: 46,
+            height: 47,
             child: Row(mainAxisAlignment: MainAxisAlignment.center, children: [
-              const Icon(Icons.add_rounded, size: 22, color: GamColors.text600),
-              const SizedBox(width: 6),
-              Text('항목 추가', style: GamText.regular13.copyWith(color: GamColors.text600)),
+              const GamIcon('ic_plus_26', size: 26),
+              const SizedBox(width: 8),
+              Text('항목 추가', style: _medium(14, GamColors.text500)),
             ]),
           ),
         ),
@@ -185,13 +203,10 @@ class _OptionRow extends StatelessWidget {
         child: GestureDetector(
           onTap: onTap,
           behavior: HitTestBehavior.opaque,
-          child: Padding(
-            padding: const EdgeInsets.fromLTRB(10, 9, 10, 9),
-            child: Row(children: [
-              Expanded(child: Text(label, style: GamText.body14)),
-              PickCheck(on: on),
-            ]),
-          ),
+          child: Row(children: [
+            Expanded(child: Text(label, style: _medium(14))),
+            PickCheck(on: on),
+          ]),
         ),
       );
 }
@@ -206,18 +221,16 @@ class _DurationRow extends StatelessWidget {
   Widget build(BuildContext context) => GestureDetector(
         onTap: onTap,
         behavior: HitTestBehavior.opaque,
-        child: Padding(
-          padding: const EdgeInsets.fromLTRB(10, 9, 4, 9),
-          child: Row(children: [
-            Expanded(child: Text('투표 진행 시간', style: GamText.body14)),
-            Text(duration.label, style: GamText.body14),
-            const Icon(Icons.chevron_right_rounded, size: 22, color: GamColors.text800),
-          ]),
-        ),
+        child: Row(children: [
+          Expanded(child: Text('투표 진행 시간', style: _medium(14))),
+          Text(duration.label, style: _medium(14).copyWith(fontWeight: FontWeight.w400)),
+          const SizedBox(width: 3),
+          const GamIcon('ic_chevron_right_22', size: 22),
+        ]),
       );
 }
 
-/// "투표 진행 시간" 목록 시트. 고르면 바로 닫힌다.
+/// "투표 진행 시간" 목록 시트. 고르면 바로 닫힌다. (Figma 1573:23910)
 class _DurationSheet extends StatelessWidget {
   const _DurationSheet({required this.selected});
 
@@ -226,28 +239,31 @@ class _DurationSheet extends StatelessWidget {
   @override
   Widget build(BuildContext context) => SafeArea(
         child: Padding(
-          padding: const EdgeInsets.fromLTRB(14, 0, 14, 16),
+          padding: const EdgeInsets.fromLTRB(16, 8, 16, 16),
           child: Column(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.start, children: [
-            Padding(
-              padding: const EdgeInsets.fromLTRB(6, 0, 6, 12),
-              child: Text('투표 진행 시간', style: GamText.section16.copyWith(fontSize: 15)),
-            ),
+            const SheetHandle(),
+            const SizedBox(height: 18),
+            Text('투표 진행 시간', style: _medium(15)),
+            const SizedBox(height: 18),
             Flexible(
               child: Container(
-                decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(20)),
+                padding: const EdgeInsets.symmetric(horizontal: 14),
+                decoration: BoxDecoration(color: GamColors.pickPage, borderRadius: BorderRadius.circular(19)),
                 child: ListView(shrinkWrap: true, padding: EdgeInsets.zero, children: [
                   for (final (i, d) in VoteDuration.values.indexed)
                     GestureDetector(
                       onTap: () => Navigator.of(context).pop(d),
                       behavior: HitTestBehavior.opaque,
                       child: Container(
-                        padding: const EdgeInsets.fromLTRB(16, 15, 14, 15),
+                        height: 53,
                         decoration: BoxDecoration(
-                          border: i == VoteDuration.values.length - 1 ? null : const Border(bottom: BorderSide(color: GamColors.lineSoft)),
+                          border: i == VoteDuration.values.length - 1
+                              ? null
+                              : const Border(bottom: BorderSide(color: GamColors.pickOptionLine)),
                         ),
                         child: Row(children: [
-                          Expanded(child: Text(d.label, style: GamText.body14)),
-                          PickCheck(on: d == selected),
+                          Expanded(child: Text(d.label, style: _medium(15))),
+                          PickCheck(on: d == selected, size: 24),
                         ]),
                       ),
                     ),

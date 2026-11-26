@@ -100,9 +100,12 @@ void main() {
     expect(find.text('어디서 만날까요?'), findsOneWidget);
     expect(find.text('조율중'), findsOneWidget);
 
+    // 약속장은 방식을 고른다 → 투표로 정하기 페이지는 내일 오후 8시 후보 하나로 시작한다.
     await tester.tap(find.text('시간 정하기'));
     await tester.pumpAndSettle();
-    await tester.tap(find.text('후보 추가'));
+    await tester.tap(find.text('투표로 정하기'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.byTooltip('완료'));
     await settle(tester);
     final created = repo.myAppointments.firstWhere((a) => a.name == '중간고사 회의');
     expect(created.timeOptions, hasLength(1));
@@ -112,7 +115,7 @@ void main() {
     await tester.pump();
     expect(repo.findById(created.id)!.timeOptions.first.voteCount, 0);
 
-    await tester.tap(find.textContaining('오후 7:00'));
+    await tester.tap(find.textContaining('오후 8:00'));
     await tester.pump();
     await tester.tap(find.text('투표하기'));
     await tester.pumpAndSettle();

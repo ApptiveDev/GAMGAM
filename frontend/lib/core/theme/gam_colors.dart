@@ -26,12 +26,18 @@ abstract final class GamColors {
   static const searchChipText = Color(0xFF8E9DA4);
   static const searchSortBorder = Color(0xFF6C92AD);
 
-  /// 시간 정하기: 고른 날짜·시간 칩과 달력의 파란색.
-  static const pickBlue = Color(0xFF5C9BE8);
-  static const pickBlueSoft = Color(0xFFE5EEFB);
-
-  /// 시트 오른쪽 위 완료(✓) 버튼.
-  static const doneButton = Color(0xFFC9CAD2);
+  /// 시간 정하기 화면들 (Figma "시간 정하기"·"바로정하기(시간)").
+  static const pickPage = Color(0xFFF4F5F7); // 투표로 정하기 바탕, 날짜·시간 칩
+  static const pickSheet = Color(0xFFECEDF0); // 바로 정하기 시트 바탕
+  static const pickCardBorder = Color(0xFFEFF0F4);
+  static const pickRowLine = Color(0xFFEDEDED);
+  static const pickOptionLine = Color(0xFFDBDBDB);
+  static const pickFaint = Color(0xFFCDCDCD); // 요일, 휠의 가운데 밖 줄
+  static const pickBlue = Color(0xFF118CD5); // 펼친 칩 글자, 달력 화살표
+  static const pickBlueSoft = Color(0xFFE6F3FC); // 바로 정하기 시트의 펼친 칩
+  static const pickDay = Color(0xFF0B9EF9); // 달력에서 고른 날
+  static const doneButton = Color(0xFFCCCED8);
+  static const sheetBarrier = Color(0x99212121);
 
   static const surface = Color(0xFFF0F1F6);
   static const surfaceSoft = Color(0xFFF0F0F4);
