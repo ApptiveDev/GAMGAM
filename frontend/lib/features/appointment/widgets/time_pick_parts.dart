@@ -518,8 +518,9 @@ class _TimeWheelState extends State<TimeWheel> {
     var pm = _pm;
     final step = raw > _hourRaw ? 1 : -1;
     for (var r = _hourRaw; r != raw; r += step) {
-      final from = r % 12, to = (r + step) % 12; // 10 = 11시, 11 = 12시
-      if ((from == 10 && to == 11) || (from == 11 && to == 10)) pm = !pm;
+      final from = r % 12, to = (r + step) % 12; // 0 = 1시, 11 = 12시
+      // 12시 ↔ 1시를 넘을 때만 오전/오후가 바뀐다.
+      if ((from == 11 && to == 0) || (from == 0 && to == 11)) pm = !pm;
     }
     _hourRaw = raw;
     setState(() {
