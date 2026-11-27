@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:gamgam/app.dart';
 import 'package:gamgam/data/models/appointment.dart';
+import 'package:gamgam/data/models/vote_settings.dart';
 import 'package:gamgam/data/repositories/mock_appointment_repository.dart';
 import 'package:gamgam/data/repositories/mock_live_location_repository.dart';
 
@@ -177,6 +178,18 @@ void main() {
     expect(find.text('확정'), findsOneWidget);
     expect(find.text('대한민국 서울특별시 성동구 뚝섬로9길 20, 2층'), findsOneWidget);
     expect(find.text('추천 장소', skipOffstage: false), findsNothing);
+  });
+
+  test('선택항목 추가 허용이 꺼지면 약속장만 후보를 더한다', () {
+    final a = MockAppointmentRepository().findById('a-donggi')!;
+    const off = VoteSettings(allowAdd: false);
+    final closed = a.copyWith(timeVoteSettings: off, placeVoteSettings: off);
+    expect(closed.placeOptions, isNotEmpty);
+    expect(closed.canAddTimeOption(a.hostId), isTrue);
+    expect(closed.canAddPlaceOption(a.hostId), isTrue);
+    expect(closed.canAddTimeOption('someone-else'), isFalse);
+    expect(closed.canAddPlaceOption('someone-else'), isFalse);
+    expect(a.canAddPlaceOption('someone-else'), isTrue, reason: '기본값은 허용');
   });
 
   testWidgets('위치 공유 시간이 된 약속은 지도 버튼과 남은 시간을 보여준다', (tester) async {

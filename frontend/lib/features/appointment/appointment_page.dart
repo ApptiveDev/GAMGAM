@@ -154,7 +154,7 @@ class _AppointmentPageState extends State<AppointmentPage> {
         repo.voteTimes(a.id, {..._pickedTimes});
         setState(_pickedTimes.clear);
       },
-      onAdd: () => _addTimeOption(a),
+      onAdd: a.canAddTimeOption(me) ? () => _addTimeOption(a) : null,
       onClose: host ? () => _close(a, time: true) : null,
       onRevote: () => repo.clearMyTimeVotes(a.id),
       pendingVoters: a.pendingVotersOf(a.timeOptions),
@@ -192,7 +192,7 @@ class _AppointmentPageState extends State<AppointmentPage> {
         repo.votePlace(a.id, _pickedPlace!);
         setState(() => _pickedPlace = null);
       },
-      onAdd: () => _addPlaceOption(a),
+      onAdd: a.canAddPlaceOption(me) ? () => _addPlaceOption(a) : null,
       onClose: host ? () => _close(a, time: false) : null,
       onRevote: () => repo.clearMyPlaceVotes(a.id),
       pendingVoters: a.pendingVotersOf(a.placeOptions),
@@ -287,6 +287,11 @@ class _AppointmentPageState extends State<AppointmentPage> {
   }
 
   Future<void> _addPlace(Appointment a, Place place) async {
+    final repo = context.read<AppointmentRepository>();
+    if (!a.canAddPlaceOption(repo.me.id)) {
+      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('이 투표는 약속장만 후보를 추가할 수 있어요')));
+      return;
+    }
     await context.read<AppointmentRepository>().addPlaceOption(a.id, place);
     if (!mounted) return;
     ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('${place.name}을(를) 후보에 올렸어요')));

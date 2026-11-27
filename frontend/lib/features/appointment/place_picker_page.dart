@@ -207,9 +207,16 @@ class _PlacePickerPageState extends State<PlacePickerPage> {
       Navigator.of(context).pop(place);
       return;
     }
-    await context.read<AppointmentRepository>().addPlaceOption(id, place);
+    final repo = context.read<AppointmentRepository>();
+    final messenger = ScaffoldMessenger.of(context)..hideCurrentSnackBar();
+    // 투표 중 "선택항목 추가 허용"이 꺼져 있으면 약속장만 더한다.
+    if (repo.findById(id)?.canAddPlaceOption(repo.me.id) == false) {
+      messenger.showSnackBar(const SnackBar(content: Text('이 투표는 약속장만 후보를 추가할 수 있어요')));
+      return;
+    }
+    await repo.addPlaceOption(id, place);
     if (!mounted) return;
-    ScaffoldMessenger.of(context)
+    messenger
       ..hideCurrentSnackBar()
       ..showSnackBar(SnackBar(content: Text('${place.name}을(를) 후보에 올렸어요')));
   }

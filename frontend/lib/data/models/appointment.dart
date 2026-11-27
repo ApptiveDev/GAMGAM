@@ -94,6 +94,12 @@ class Appointment {
   bool get awaitsTimeConfirm => isVotingTime && timeVoteClosed;
   bool get awaitsPlaceConfirm => isVotingPlace && placeVoteClosed;
 
+  /// 투표 중 후보를 더할 수 있는지. "선택항목 추가 허용"이 꺼져 있으면 약속장만 더한다.
+  bool canAddTimeOption(String userId) => isHost(userId) || timeVoteSettings.allowAdd;
+
+  /// 장소 투표가 아직 없으면 누구나 첫 후보를 올릴 수 있다.
+  bool canAddPlaceOption(String userId) => isHost(userId) || placeOptions.isEmpty || placeVoteSettings.allowAdd;
+
   /// 이 후보 목록에 아직 한 표도 안 던진 사람 수.
   int pendingVotersOf<T>(List<VoteOption<T>> options) {
     final voted = options.expand((o) => o.voterIds).toSet();

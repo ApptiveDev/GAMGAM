@@ -160,7 +160,9 @@ class VoteCard extends StatelessWidget {
   final Set<String> selected;
   final ValueChanged<String> onSelect;
   final VoidCallback onVote;
-  final VoidCallback onAdd;
+  /// 항목 추가. 추가할 수 없으면(선택항목 추가 허용이 꺼진 참여자) null이고 줄을 숨긴다.
+  final VoidCallback? onAdd;
+
   /// 투표 종료하기. 약속장이 아니면 null이고 버튼을 숨긴다.
   final VoidCallback? onClose;
   final VoidCallback onRevote;
@@ -180,18 +182,19 @@ class VoteCard extends StatelessWidget {
               onTap: hasVoted ? null : () => onSelect(row.id),
               fraction: participantCount == 0 ? 0 : row.votes / participantCount,
             ),
-          GestureDetector(
-            onTap: onAdd,
-            behavior: HitTestBehavior.opaque,
-            child: Padding(
-              padding: const EdgeInsets.only(top: 14, bottom: 11),
-              child: Row(mainAxisSize: MainAxisSize.min, children: [
-                const GamIcon('ic_plus_line', size: 20),
-                const SizedBox(width: 8),
-                Text('항목 추가', style: GamText.caption12),
-              ]),
+          if (onAdd != null)
+            GestureDetector(
+              onTap: onAdd,
+              behavior: HitTestBehavior.opaque,
+              child: Padding(
+                padding: const EdgeInsets.only(top: 14, bottom: 11),
+                child: Row(mainAxisSize: MainAxisSize.min, children: [
+                  const GamIcon('ic_plus_line', size: 20),
+                  const SizedBox(width: 8),
+                  Text('항목 추가', style: GamText.caption12),
+                ]),
+              ),
             ),
-          ),
           const SizedBox(height: 15),
           if (hasVoted) ...[
             Align(
