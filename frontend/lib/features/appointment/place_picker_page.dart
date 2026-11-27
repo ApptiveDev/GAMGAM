@@ -1,5 +1,3 @@
-import 'dart:ui' show ImageFilter;
-
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
@@ -97,12 +95,21 @@ class _PlacePickerPageState extends State<PlacePickerPage> {
                     setState(() => _category = category);
                   },
                   child: Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 11, vertical: 12),
+                    padding: const EdgeInsets.symmetric(horizontal: 11),
+                    alignment: Alignment.center,
                     decoration: BoxDecoration(
                       color: selected ? GamColors.pinkStrong : GamColors.surface,
                       borderRadius: BorderRadius.circular(29),
                     ),
-                    child: Text(category, style: GamText.body14.copyWith(color: selected ? GamColors.text900 : GamColors.text300)),
+                    // 글자 위아래 여백을 똑같이 나눠 칩 가운데에 오게 한다.
+                    child: Text(
+                      category,
+                      style: GamText.body14.copyWith(
+                        color: selected ? GamColors.text900 : GamColors.text300,
+                        height: 1,
+                        leadingDistribution: TextLeadingDistribution.even,
+                      ),
+                    ),
                   ),
                 );
               },
@@ -135,18 +142,13 @@ class _PlacePickerPageState extends State<PlacePickerPage> {
           bottom: 0,
           height: 213,
           child: IgnorePointer(
-            child: ClipRect(
-              child: BackdropFilter(
-                filter: ImageFilter.blur(sigmaX: 1, sigmaY: 1),
-                child: DecoratedBox(
-                  decoration: BoxDecoration(
-                    gradient: LinearGradient(
-                      begin: Alignment.topCenter,
-                      end: Alignment.bottomCenter,
-                      colors: [Colors.white.withValues(alpha: 0), Colors.white.withValues(alpha: 0.9)],
-                      stops: const [0.479, 0.896],
-                    ),
-                  ),
+            child: DecoratedBox(
+              decoration: BoxDecoration(
+                gradient: LinearGradient(
+                  begin: Alignment.topCenter,
+                  end: Alignment.bottomCenter,
+                  colors: [Colors.white.withValues(alpha: 0), Colors.white.withValues(alpha: 0.9)],
+                  stops: const [0.479, 0.896],
                 ),
               ),
             ),

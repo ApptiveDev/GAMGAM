@@ -1,5 +1,3 @@
-import 'dart:ui' show ImageFilter;
-
 import 'package:flutter/material.dart';
 
 import '../../core/theme/gam_colors.dart';
@@ -343,18 +341,13 @@ class _RecommendDock extends StatelessWidget {
         height: 213,
         child: Stack(fit: StackFit.expand, children: [
           IgnorePointer(
-            child: ClipRect(
-              child: BackdropFilter(
-                filter: ImageFilter.blur(sigmaX: 1, sigmaY: 1),
-                child: DecoratedBox(
-                  decoration: BoxDecoration(
-                    gradient: LinearGradient(
-                      begin: Alignment.topCenter,
-                      end: Alignment.bottomCenter,
-                      stops: const [0.479, 0.896],
-                      colors: [GamColors.pickPage.withValues(alpha: 0), GamColors.pickPage.withValues(alpha: 0.9)],
-                    ),
-                  ),
+            child: DecoratedBox(
+              decoration: BoxDecoration(
+                gradient: LinearGradient(
+                  begin: Alignment.topCenter,
+                  end: Alignment.bottomCenter,
+                  stops: const [0.479, 0.896],
+                  colors: [GamColors.pickPage.withValues(alpha: 0), GamColors.pickPage.withValues(alpha: 0.9)],
                 ),
               ),
             ),
