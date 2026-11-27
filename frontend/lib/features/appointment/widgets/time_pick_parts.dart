@@ -49,21 +49,23 @@ class PickHeader extends StatelessWidget {
           child: _RoundButton(
             tooltip: '완료',
             size: sheet ? 41 : 35,
+            // 누를 수 있으면 X와 같은 흰 바탕·진한 체크, 못 누르면 Figma 회색 그대로. (시트·페이지 공통)
             decoration: sheet
                 ? BoxDecoration(
                     shape: BoxShape.circle,
-                    border: Border.all(color: const Color(0xFFC8CAD6)),
-                    gradient: const LinearGradient(
+                    border: Border.all(color: onDone == null ? const Color(0xFFC8CAD6) : Colors.white),
+                    gradient: LinearGradient(
                       begin: Alignment.topLeft,
                       end: Alignment.bottomRight,
-                      colors: [Color(0xFFB9BAC1), Color(0xFFCDCDD2)],
+                      colors: onDone == null
+                          ? const [Color(0xFFB9BAC1), Color(0xFFCDCDD2)]
+                          : const [Color(0xFFEBEBEB), Colors.white],
                     ),
                   )
-                // 누를 수 있으면 X와 같은 흰 바탕·진한 체크, 못 누르면 Figma 회색 그대로.
                 : BoxDecoration(shape: BoxShape.circle, color: onDone == null ? GamColors.doneButton : Colors.white),
             onTap: onDone,
             child: sheet
-                ? const GamIcon('ic_sheet_check', size: 28)
+                ? GamIcon('ic_sheet_check', size: 28, color: onDone == null ? null : GamColors.text900)
                 : GamIcon('ic_pick_check', size: 24, color: onDone == null ? null : GamColors.text900),
           ),
         ),
