@@ -7,6 +7,7 @@ import '../models/group.dart';
 import '../models/participant.dart';
 import '../models/place.dart';
 import '../models/vote_option.dart';
+import '../models/vote_settings.dart';
 import 'appointment_repository.dart';
 
 /// 메모리에만 저장하는 목업. 앱을 껐다 켜면 초기화된다.
@@ -161,6 +162,31 @@ class MockAppointmentRepository extends AppointmentRepository {
   }
 
   @override
+  Future<void> decideTime(String appointmentId, DateTime time) async {
+    await Future.delayed(_latency);
+    _update(appointmentId, (a) {
+      final existing = a.timeOptions.where((o) => o.value == time);
+      final options = existing.isEmpty ? [...a.timeOptions, TimeOption(id: 't-${time.millisecondsSinceEpoch}', value: time)] : a.timeOptions;
+      return _settle(a.copyWith(timeOptions: options, confirmedTime: time));
+    });
+  }
+
+  @override
+  Future<void> startTimeVote(
+    String appointmentId, {
+    required List<DateTime> times,
+    required VoteSettings settings,
+    required VoteDuration duration,
+  }) async {
+    await Future.delayed(_latency);
+    _update(appointmentId, (a) => a.copyWith(
+          timeOptions: [for (final t in times) TimeOption(id: 't-${t.millisecondsSinceEpoch}', value: t)],
+          timeVoteSettings: settings,
+          timeVoteDuration: duration,
+        ));
+  }
+
+  @override
   Future<void> addPlaceOption(String appointmentId, Place place) async {
     _update(appointmentId, (a) => a.placeOptions.any((o) => o.value.name == place.name)
         ? a
@@ -168,15 +194,42 @@ class MockAppointmentRepository extends AppointmentRepository {
   }
 
   @override
+  Future<void> startPlaceVote(
+    String appointmentId, {
+    required List<Place> places,
+    required VoteSettings settings,
+    required VoteDuration duration,
+  }) async {
+    await Future.delayed(_latency);
+    _update(appointmentId, (a) => a.copyWith(
+          placeOptions: [for (final (i, p) in places.indexed) PlaceOption(id: 'p$i-${p.name.hashCode}', value: p)],
+          placeVoteSettings: settings,
+          placeVoteDuration: duration,
+        ));
+  }
+
+  @override
+  Future<void> decidePlace(String appointmentId, Place place) async {
+    await Future.delayed(_latency);
+    _update(appointmentId, (a) {
+      final existing = a.placeOptions.any((o) => o.value.name == place.name);
+      final options = existing
+          ? a.placeOptions
+          : [...a.placeOptions, PlaceOption(id: 'p-${place.name.hashCode}', value: place)];
+      return _settle(a.copyWith(placeOptions: options, confirmedPlace: place));
+    });
+  }
+
+  @override
   Future<void> closeTimeVote(String appointmentId) async {
     await Future.delayed(_latency);
-    _update(appointmentId, (a) => _settle(a.copyWith(confirmedTime: a.time)));
+    _update(appointmentId, (a) => a.copyWith(timeVoteClosed: true));
   }
 
   @override
   Future<void> closePlaceVote(String appointmentId) async {
     await Future.delayed(_latency);
-    _update(appointmentId, (a) => _settle(a.copyWith(confirmedPlace: a.place)));
+    _update(appointmentId, (a) => a.copyWith(placeVoteClosed: true));
   }
 
   /// 시간·장소가 모두 정해졌으면 약속을 확정한다.
@@ -232,6 +285,12 @@ class MockAppointmentRepository extends AppointmentRepository {
               groupId: local.groupId,
               imageAsset: local.imageAsset,
               createdAt: local.createdAt,
+              timeVoteSettings: local.timeVoteSettings,
+              placeVoteSettings: local.placeVoteSettings,
+              timeVoteClosed: local.timeVoteClosed,
+              placeVoteClosed: local.placeVoteClosed,
+              timeVoteDuration: local.timeVoteDuration,
+              placeVoteDuration: local.placeVoteDuration,
             );
     }
     notifyListeners();

@@ -2,6 +2,8 @@ import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:gamgam/app.dart';
 import 'package:gamgam/data/models/appointment.dart';
+import 'package:gamgam/data/models/place.dart';
+import 'package:gamgam/data/models/vote_settings.dart';
 import 'package:gamgam/data/repositories/mock_appointment_repository.dart';
 import 'package:gamgam/data/repositories/mock_live_location_repository.dart';
 
@@ -32,6 +34,17 @@ void main() {
     await tester.ensureVisible(find.text(text).first);
     await tester.pumpAndSettle();
     await tester.tap(find.text(text).first);
+    await settle(tester);
+  }
+
+  /// 투표 종료하기 → 확인 창 "종료" → 확정대기 카드의 "확정하기" → 1위로 확정.
+  Future<void> closeAndConfirm(WidgetTester tester) async {
+    await tapText(tester, '투표 종료하기');
+    await tester.tap(find.text('종료'));
+    await settle(tester);
+    expect(find.text('확정대기 중'), findsOneWidget);
+    await tapText(tester, '확정하기');
+    await tester.tap(find.textContaining('로 확정'));
     await settle(tester);
   }
 
@@ -100,9 +113,12 @@ void main() {
     expect(find.text('어디서 만날까요?'), findsOneWidget);
     expect(find.text('조율중'), findsOneWidget);
 
+    // 약속장은 방식을 고른다 → 투표로 정하기 페이지는 내일 오후 8시 후보 하나로 시작한다.
     await tester.tap(find.text('시간 정하기'));
     await tester.pumpAndSettle();
-    await tester.tap(find.text('후보 추가'));
+    await tester.tap(find.text('투표로 정하기'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.byTooltip('완료'));
     await settle(tester);
     final created = repo.myAppointments.firstWhere((a) => a.name == '중간고사 회의');
     expect(created.timeOptions, hasLength(1));
@@ -112,18 +128,28 @@ void main() {
     await tester.pump();
     expect(repo.findById(created.id)!.timeOptions.first.voteCount, 0);
 
-    await tester.tap(find.textContaining('오후 7:00'));
+    await tester.tap(find.textContaining('오후 8:00'));
     await tester.pump();
     await tester.tap(find.text('투표하기'));
     await tester.pumpAndSettle();
     expect(find.text('1명'), findsOneWidget);
     expect(find.text('모두 투표 완료했어요'), findsOneWidget);
 
-    await tapText(tester, '투표 종료하기');
+    await closeAndConfirm(tester);
     final closed = repo.findById(created.id)!;
     expect(closed.confirmedTime, isNotNull);
     expect(closed.status, AppointmentStatus.coordinating, reason: '장소가 아직 안 정해졌다');
     expect(find.text('어디서 만날까요?'), findsOneWidget);
+
+    // 장소도 투표로 정한다: 빈 줄에 이름을 쓰고 ✓.
+    await tapText(tester, '장소 정하기');
+    await tester.tap(find.text('투표로 정하기'));
+    await tester.pumpAndSettle();
+    await tester.enterText(find.byType(TextField), '학교 앞 카페');
+    await tester.pump();
+    await tester.tap(find.byTooltip('완료'));
+    await settle(tester);
+    expect(repo.findById(created.id)!.placeOptions.map((o) => o.value.name), ['학교 앞 카페']);
   });
 
   testWidgets('장소 투표 → 확정되면 확정 화면', (tester) async {
@@ -135,15 +161,46 @@ void main() {
     await tapText(tester, '투표하기');
     expect(repo.findById('a-donggi')!.placeOptions.first.votedBy(repo.me.id), isTrue);
 
-    // 시간 → 장소 순서로 투표를 끝낸다.
+    // 시간 → 장소 순서로 투표를 끝내고 1위로 확정한다. 장소는 성수다락이 1위가 아니면 직접 고른다.
+    await closeAndConfirm(tester);
     await tapText(tester, '투표 종료하기');
-    await tapText(tester, '투표 종료하기');
+    await tester.tap(find.text('종료'));
+    await settle(tester);
+    await tapText(tester, '확정하기');
+    if (find.text('성수다락로 확정').evaluate().isEmpty) {
+      await tester.tap(find.text('성수다락').last);
+      await tester.pump();
+    }
+    await tester.tap(find.text('성수다락로 확정'));
+    await settle(tester);
 
     final a = repo.findById('a-donggi')!;
     expect(a.isConfirmed, isTrue);
     expect(find.text('확정'), findsOneWidget);
     expect(find.text('대한민국 서울특별시 성동구 뚝섬로9길 20, 2층'), findsOneWidget);
     expect(find.text('추천 장소', skipOffstage: false), findsNothing);
+  });
+
+  test('선택항목 추가 허용이 꺼지면 약속장만 후보를 더한다', () {
+    final a = MockAppointmentRepository().findById('a-donggi')!;
+    const off = VoteSettings(allowAdd: false);
+    final closed = a.copyWith(timeVoteSettings: off, placeVoteSettings: off);
+    expect(closed.placeOptions, isNotEmpty);
+    expect(closed.canAddTimeOption(a.hostId), isTrue);
+    expect(closed.canAddPlaceOption(a.hostId), isTrue);
+    expect(closed.canAddTimeOption('someone-else'), isFalse);
+    expect(closed.canAddPlaceOption('someone-else'), isFalse);
+    expect(a.canAddPlaceOption('someone-else'), isTrue, reason: '기본값은 허용');
+  });
+
+  test('투표 진행 시간은 시간·장소가 따로 저장된다', () async {
+    final repo = MockAppointmentRepository();
+    final id = repo.myAppointments.first.id;
+    await repo.startTimeVote(id, times: [DateTime(2026, 12, 1, 19)], settings: const VoteSettings(), duration: VoteDuration.hour1);
+    await repo.startPlaceVote(id, places: const [Place(name: '학교 앞 카페')], settings: const VoteSettings(), duration: VoteDuration.day3);
+    final a = repo.findById(id)!;
+    expect(a.timeVoteDuration, VoteDuration.hour1, reason: '장소 투표가 덮어쓰지 않는다');
+    expect(a.placeVoteDuration, VoteDuration.day3);
   });
 
   testWidgets('위치 공유 시간이 된 약속은 지도 버튼과 남은 시간을 보여준다', (tester) async {

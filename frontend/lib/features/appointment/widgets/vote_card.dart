@@ -160,8 +160,11 @@ class VoteCard extends StatelessWidget {
   final Set<String> selected;
   final ValueChanged<String> onSelect;
   final VoidCallback onVote;
-  final VoidCallback onAdd;
-  final VoidCallback onClose;
+  /// 항목 추가. 추가할 수 없으면(선택항목 추가 허용이 꺼진 참여자) null이고 줄을 숨긴다.
+  final VoidCallback? onAdd;
+
+  /// 투표 종료하기. 약속장이 아니면 null이고 버튼을 숨긴다.
+  final VoidCallback? onClose;
   final VoidCallback onRevote;
   final int pendingVoters;
   final int participantCount;
@@ -179,18 +182,19 @@ class VoteCard extends StatelessWidget {
               onTap: hasVoted ? null : () => onSelect(row.id),
               fraction: participantCount == 0 ? 0 : row.votes / participantCount,
             ),
-          GestureDetector(
-            onTap: onAdd,
-            behavior: HitTestBehavior.opaque,
-            child: Padding(
-              padding: const EdgeInsets.only(top: 14, bottom: 11),
-              child: Row(mainAxisSize: MainAxisSize.min, children: [
-                const GamIcon('ic_plus_line', size: 20),
-                const SizedBox(width: 8),
-                Text('항목 추가', style: GamText.caption12),
-              ]),
+          if (onAdd != null)
+            GestureDetector(
+              onTap: onAdd,
+              behavior: HitTestBehavior.opaque,
+              child: Padding(
+                padding: const EdgeInsets.only(top: 14, bottom: 11),
+                child: Row(mainAxisSize: MainAxisSize.min, children: [
+                  const GamIcon('ic_plus_line', size: 20),
+                  const SizedBox(width: 8),
+                  Text('항목 추가', style: GamText.caption12),
+                ]),
+              ),
             ),
-          ),
           const SizedBox(height: 15),
           if (hasVoted) ...[
             Align(
@@ -206,8 +210,10 @@ class VoteCard extends StatelessWidget {
             ),
             const SizedBox(height: 14),
             Row(children: [
-              Expanded(child: _CardButton('투표 종료하기', onTap: onClose)),
-              const SizedBox(width: 10),
+              if (onClose != null) ...[
+                Expanded(child: _CardButton('투표 종료하기', onTap: onClose)),
+                const SizedBox(width: 10),
+              ],
               Expanded(child: _CardButton('다시 투표하기', onTap: onRevote)),
             ]),
           ] else
@@ -331,4 +337,112 @@ class _CardButton extends StatelessWidget {
         textStyle: GamText.body13,
         padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
       );
+}
+
+/// 투표를 끝내고 약속장의 확정을 기다리는 카드: "확정대기 중" / 1위 후보 / "확정하기 >". (Figma 1681:16885)
+/// [onConfirm]이 없으면(약속장이 아니면) 맨 아래 줄을 숨긴다.
+class PendingConfirmCard extends StatelessWidget {
+  const PendingConfirmCard({super.key, required this.leader, this.onConfirm});
+
+  /// 1위 후보 내용. 아무도 안 찍었으면 null.
+  final Widget? leader;
+  final VoidCallback? onConfirm;
+
+  @override
+  Widget build(BuildContext context) => Container(
+        width: double.infinity,
+        clipBehavior: Clip.antiAlias,
+        decoration: BoxDecoration(
+          color: GamColors.card,
+          borderRadius: BorderRadius.circular(10),
+          border: Border.all(color: GamColors.cardBorder),
+        ),
+        child: Column(children: [
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+            decoration: const BoxDecoration(border: Border(bottom: BorderSide(color: GamColors.cardBorder))),
+            child: Row(children: [
+              const GamIcon('ic_pending', size: 20),
+              const SizedBox(width: 6),
+              Text('확정대기 중', style: GamText.regular13),
+            ]),
+          ),
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 25),
+            child: leader == null
+                ? Text('아직 아무도 투표하지 않았어요', style: GamText.regular13)
+                : Column(children: [
+                    Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                      decoration: BoxDecoration(color: GamColors.pink, borderRadius: BorderRadius.circular(28)),
+                      child: Text('1위', style: GamText.body13.copyWith(fontWeight: FontWeight.w600)),
+                    ),
+                    const SizedBox(height: 10),
+                    leader!,
+                  ]),
+          ),
+          if (onConfirm != null)
+            Material(
+              color: GamColors.cardButton,
+              child: InkWell(
+                onTap: onConfirm,
+                child: Padding(
+                  padding: const EdgeInsets.fromLTRB(16, 14, 10, 14),
+                  child: Row(children: [
+                    Expanded(child: Text('확정하기', style: GamText.body13.copyWith(color: GamColors.text800))),
+                    const GamIcon('ic_chevron_right_18', size: 18),
+                  ]),
+                ),
+              ),
+            ),
+        ]),
+      );
+}
+
+/// 확정대기 카드 가운데의 시간: "10월 6일 (화)" / "오전 2:03".
+class PendingTimeLabel extends StatelessWidget {
+  const PendingTimeLabel({super.key, required this.date, required this.time});
+
+  final String date;
+  final String time;
+
+  @override
+  Widget build(BuildContext context) => Column(children: [
+        Padding(
+          padding: const EdgeInsets.symmetric(vertical: 3),
+          child: Text(date, style: GamText.body14),
+        ),
+        const SizedBox(height: 4),
+        Text(time, style: GamText.regular13),
+      ]);
+}
+
+/// "투표를 종료하시겠습니까?" 확인 창. 종료를 누르면 true. (Figma 1652:28683)
+Future<bool> confirmCloseVote(BuildContext context) async {
+  final ok = await showDialog<bool>(
+    context: context,
+    builder: (dialog) => Dialog(
+      backgroundColor: Colors.white,
+      insetPadding: const EdgeInsets.symmetric(horizontal: 40),
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+      child: Padding(
+        padding: const EdgeInsets.fromLTRB(24, 26, 16, 14),
+        child: Column(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.start, children: [
+          Text('투표를 종료하시겠습니까?', style: GamText.body14.copyWith(color: GamColors.text900)),
+          const SizedBox(height: 22),
+          Row(mainAxisAlignment: MainAxisAlignment.end, children: [
+            TextButton(
+              onPressed: () => Navigator.of(dialog).pop(false),
+              child: Text('취소', style: GamText.body14.copyWith(color: GamColors.pickBlue)),
+            ),
+            TextButton(
+              onPressed: () => Navigator.of(dialog).pop(true),
+              child: Text('종료', style: GamText.body14.copyWith(color: GamColors.pickBlue)),
+            ),
+          ]),
+        ]),
+      ),
+    ),
+  );
+  return ok ?? false;
 }

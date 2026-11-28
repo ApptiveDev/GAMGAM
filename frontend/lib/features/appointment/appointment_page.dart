@@ -19,7 +19,11 @@ import '../../data/models/place.dart';
 import '../../data/repositories/appointment_repository.dart';
 import '../../data/repositories/live_location_repository.dart';
 import '../live_map/open_live_map.dart';
+import 'confirm_page.dart';
+import 'place_vote_page.dart';
+import 'time_vote_page.dart';
 import 'widgets/arrival_row.dart';
+import 'widgets/place_sheet.dart';
 import 'widgets/vote_card.dart';
 import 'widgets/time_sheet.dart';
 
@@ -45,6 +49,15 @@ class _AppointmentPageState extends State<AppointmentPage> {
   /// 추천 장소 "새로고침" 할 때마다 다음 묶음을 보여준다.
   var _recommendPage = 0;
 
+  /// 배경 하늘색이 내용과 함께 위로 올라가도록 [PinkFrame]에 넘긴다.
+  final _scroll = ScrollController();
+
+  @override
+  void dispose() {
+    _scroll.dispose();
+    super.dispose();
+  }
+
   @override
   Widget build(BuildContext context) {
     final repo = context.watch<AppointmentRepository>();
@@ -54,21 +67,25 @@ class _AppointmentPageState extends State<AppointmentPage> {
     final live = a.isConfirmed && a.confirmedTime != null && now.isAfter(a.confirmedTime!.subtract(const Duration(hours: 2)));
 
     return PinkFrame(
-      child: Column(children: [
-        FrameTopBar(
-          leading: GamIconButton('ic_arrow_left', tooltip: '뒤로', onTap: () => context.canPop() ? context.pop() : context.go(AppRoutes.home)),
-        ),
-        Expanded(
-          child: ListView(
-            padding: const EdgeInsets.fromLTRB(20, 2, 20, 48),
-            children: [
+      scrollWith: _scroll,
+      // 뒤로가기 줄도 내용과 함께 스크롤되어, 위로 올라가는 내용이 그 밑에 가려지지 않는다.
+      child: ListView(
+        controller: _scroll,
+        padding: const EdgeInsets.only(bottom: 48),
+        children: [
+          FrameTopBar(
+            leading: GamIconButton('ic_arrow_left', tooltip: '뒤로', onTap: () => context.canPop() ? context.pop() : context.go(AppRoutes.home)),
+          ),
+          Padding(
+            padding: const EdgeInsets.fromLTRB(20, 2, 20, 0),
+            child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
               _Header(appointment: a, live: live),
               const SizedBox(height: 36),
               if (live) ..._liveSections(a) else ..._sections(a),
-            ],
+            ]),
           ),
-        ),
-      ]),
+        ],
+      ),
     );
   }
 
@@ -107,6 +124,14 @@ class _AppointmentPageState extends State<AppointmentPage> {
   }
 
   Widget _timeVote(Appointment a) {
+    final host = a.isHost(context.read<AppointmentRepository>().me.id);
+    if (a.awaitsTimeConfirm) {
+      final t = a.timeOptions.any((o) => o.voteCount > 0) ? a.time : null;
+      return PendingConfirmCard(
+        leader: t == null ? null : PendingTimeLabel(date: DateText.date(t), time: DateText.time(t)),
+        onConfirm: host ? () => _confirmTime(a) : null,
+      );
+    }
     if (a.timeOptions.isEmpty) {
       return EmptyVoteCard(title: '언제로 할까요?', subtitle: '함께 가능한 시간을 찾아보세요.', action: '시간 정하기', onTap: () => _addTime(a));
     }
@@ -119,13 +144,18 @@ class _AppointmentPageState extends State<AppointmentPage> {
       ],
       hasVoted: a.timeOptions.any((o) => o.votedBy(me)),
       selected: _pickedTimes,
-      onSelect: (id) => setState(() => _pickedTimes.contains(id) ? _pickedTimes.remove(id) : _pickedTimes.add(id)),
+      onSelect: (id) => setState(() {
+        if (_pickedTimes.remove(id)) return;
+        // 복수선택이 꺼져 있으면 하나만 고른다.
+        if (!a.timeVoteSettings.multiple) _pickedTimes.clear();
+        _pickedTimes.add(id);
+      }),
       onVote: () {
         repo.voteTimes(a.id, {..._pickedTimes});
         setState(_pickedTimes.clear);
       },
-      onAdd: () => _addTime(a),
-      onClose: () => _close(a, time: true),
+      onAdd: a.canAddTimeOption(me) ? () => _addTimeOption(a) : null,
+      onClose: host ? () => _close(a, time: true) : null,
       onRevote: () => repo.clearMyTimeVotes(a.id),
       pendingVoters: a.pendingVotersOf(a.timeOptions),
       participantCount: a.participants.length,
@@ -133,12 +163,20 @@ class _AppointmentPageState extends State<AppointmentPage> {
   }
 
   Widget _placeVote(Appointment a) {
+    final host = a.isHost(context.read<AppointmentRepository>().me.id);
+    if (a.awaitsPlaceConfirm) {
+      final p = a.placeOptions.any((o) => o.voteCount > 0) ? a.place : null;
+      return PendingConfirmCard(
+        leader: p == null ? null : VoteOptionLabel.place(p),
+        onConfirm: host ? () => _confirmPlace(a) : null,
+      );
+    }
     if (a.placeOptions.isEmpty) {
       return EmptyVoteCard(
         title: '어디서 만날까요?',
         subtitle: '우리에게 맞는 장소를 찾아보세요.',
         action: '장소 정하기',
-        onTap: () => context.push(AppRoutes.pickPlace(a.id)),
+        onTap: () => _decidePlace(a),
       );
     }
     final repo = context.read<AppointmentRepository>();
@@ -154,8 +192,8 @@ class _AppointmentPageState extends State<AppointmentPage> {
         repo.votePlace(a.id, _pickedPlace!);
         setState(() => _pickedPlace = null);
       },
-      onAdd: () => context.push(AppRoutes.pickPlace(a.id)),
-      onClose: () => _close(a, time: false),
+      onAdd: a.canAddPlaceOption(me) ? () => _addPlaceOption(a) : null,
+      onClose: host ? () => _close(a, time: false) : null,
       onRevote: () => repo.clearMyPlaceVotes(a.id),
       pendingVoters: a.pendingVotersOf(a.placeOptions),
       participantCount: a.participants.length,
@@ -203,20 +241,102 @@ class _AppointmentPageState extends State<AppointmentPage> {
     ]);
   }
 
+  /// 시간 정하기. 약속장은 바로 정하기/투표로 정하기 중 고르고, 참여자는 투표로만 정한다(확정은 약속장만).
   Future<void> _addTime(Appointment a) async {
-    final time = await showTimeSheet(context);
+    final repo = context.read<AppointmentRepository>();
+    final method = a.isHost(repo.me.id) ? await showDecideMethodSheet(context) : DecideMethod.vote;
+    if (method == null || !mounted) return;
+    switch (method) {
+      case DecideMethod.direct:
+        final time = await showDecideTimeSheet(context);
+        if (time != null) await repo.decideTime(a.id, time);
+      case DecideMethod.vote:
+        final draft = await openTimeVotePage(context, initialDuration: a.timeVoteDuration);
+        if (draft != null) await repo.startTimeVote(a.id, times: draft.times, settings: draft.settings, duration: draft.duration);
+    }
+  }
+
+  /// 투표 중 후보 하나 더하기.
+  Future<void> _addTimeOption(Appointment a) async {
+    final last = a.timeOptions.lastOrNull?.value;
+    final time = await showDecideTimeSheet(context, title: '항목 추가', initial: last?.add(const Duration(days: 1)));
     if (time == null || !mounted) return;
     await context.read<AppointmentRepository>().addTimeOption(a.id, time);
   }
 
+  /// 장소 정하기. 시간과 같이 약속장은 바로 정하기/투표로 정하기 중 고르고, 참여자는 투표로만 정한다.
+  Future<void> _decidePlace(Appointment a) async {
+    final repo = context.read<AppointmentRepository>();
+    final method = a.isHost(repo.me.id) ? await showDecideMethodSheet(context) : DecideMethod.vote;
+    if (method == null || !mounted) return;
+    switch (method) {
+      case DecideMethod.direct:
+        final place = await showDecidePlaceSheet(context);
+        if (place != null) await repo.decidePlace(a.id, place);
+      case DecideMethod.vote:
+        final draft = await openPlaceVotePage(context, initialDuration: a.placeVoteDuration);
+        if (draft != null) await repo.startPlaceVote(a.id, places: draft.places, settings: draft.settings, duration: draft.duration);
+    }
+  }
+
+  /// 투표 중 장소 후보 하나 더하기. 시간의 "항목 추가"와 같이 장소 시트를 연다.
+  Future<void> _addPlaceOption(Appointment a) async {
+    final place = await showDecidePlaceSheet(context, title: '항목 추가');
+    if (place == null || !mounted) return;
+    await _addPlace(a, place);
+  }
+
   Future<void> _addPlace(Appointment a, Place place) async {
+    final repo = context.read<AppointmentRepository>();
+    if (!a.canAddPlaceOption(repo.me.id)) {
+      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('이 투표는 약속장만 후보를 추가할 수 있어요')));
+      return;
+    }
     await context.read<AppointmentRepository>().addPlaceOption(a.id, place);
     if (!mounted) return;
     ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('${place.name}을(를) 후보에 올렸어요')));
   }
 
+  /// 확정하기(약속장만): 후보 중 하나를 고르거나 다른 시간을 직접 정해 확정한다.
+  Future<void> _confirmTime(Appointment a) async {
+    ConfirmOption<DateTime> option(DateTime t, [int votes = 0]) =>
+        ConfirmOption(value: t, label: VoteOptionLabel.time(DateText.dateTime(t)), text: DateText.dateTime(t), votes: votes);
+    final repo = context.read<AppointmentRepository>();
+    final time = await openConfirmPage<DateTime>(
+      context,
+      options: [for (final o in a.timeOptions) option(o.value, o.voteCount)],
+      participantCount: a.participants.length,
+      directLabel: '다른 시간 직접 정하기',
+      onDirect: (ctx) async {
+        final t = await showDecideTimeSheet(ctx, initial: a.time);
+        return t == null ? null : option(t);
+      },
+    );
+    if (time != null) await repo.decideTime(a.id, time);
+  }
+
+  Future<void> _confirmPlace(Appointment a) async {
+    ConfirmOption<Place> option(Place p, [int votes = 0]) =>
+        ConfirmOption(value: p, label: VoteOptionLabel.place(p), text: p.name, votes: votes);
+    final repo = context.read<AppointmentRepository>();
+    final place = await openConfirmPage<Place>(
+      context,
+      options: [for (final o in a.placeOptions) option(o.value, o.voteCount)],
+      participantCount: a.participants.length,
+      directLabel: '다른 장소 직접 정하기',
+      same: (x, y) => x.name == y.name,
+      onDirect: (ctx) async {
+        final p = await showDecidePlaceSheet(ctx);
+        return p == null ? null : option(p);
+      },
+    );
+    if (place != null) await repo.decidePlace(a.id, place);
+  }
+
+  /// 투표 종료하기(약속장만). 확인을 받고 "확정대기 중"으로 넘긴다.
   Future<void> _close(Appointment a, {required bool time}) async {
     final repo = context.read<AppointmentRepository>();
+    if (!await confirmCloseVote(context)) return;
     if (time) {
       await repo.closeTimeVote(a.id);
     } else {

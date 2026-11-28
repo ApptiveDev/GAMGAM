@@ -2,6 +2,7 @@ import 'decision_template.dart';
 import 'participant.dart';
 import 'place.dart';
 import 'vote_option.dart';
+import 'vote_settings.dart';
 
 enum AppointmentStatus { coordinating, confirmed, completed }
 
@@ -26,6 +27,12 @@ class Appointment {
     this.groupId,
     this.imageAsset,
     this.createdAt,
+    this.timeVoteSettings = const VoteSettings(),
+    this.placeVoteSettings = const VoteSettings(),
+    this.timeVoteClosed = false,
+    this.placeVoteClosed = false,
+    this.timeVoteDuration = VoteDuration.min30,
+    this.placeVoteDuration = VoteDuration.min30,
   });
 
   final String id;
@@ -60,6 +67,20 @@ class Appointment {
   /// 그룹 안 "최근 만든 순" 정렬에 쓴다.
   final DateTime? createdAt;
 
+  /// 시간 투표 설정 (복수선택·익명·후보 추가 허용).
+  final VoteSettings timeVoteSettings;
+
+  /// 장소 투표 설정.
+  final VoteSettings placeVoteSettings;
+
+  /// 약속장이 "투표 종료하기"를 눌렀다. 확정하기 전까지 "확정대기 중"으로 보여준다.
+  final bool timeVoteClosed;
+  final bool placeVoteClosed;
+
+  /// 투표 진행 시간. 시간·장소 투표가 따로 정한다(백엔드 `PUT /polls/{type}`·디자인과 같음).
+  final VoteDuration timeVoteDuration;
+  final VoteDuration placeVoteDuration;
+
   bool get isCoordinating => status == AppointmentStatus.coordinating;
   bool get isConfirmed => status == AppointmentStatus.confirmed;
   bool get isCompleted => status == AppointmentStatus.completed;
@@ -70,6 +91,16 @@ class Appointment {
   /// 시간·장소를 투표로 정하는 중인지. 둘 중 하나라도 아직 안 정해졌으면 true.
   bool get isVotingTime => isCoordinating && confirmedTime == null;
   bool get isVotingPlace => isCoordinating && confirmedPlace == null;
+
+  /// 투표는 끝났고 약속장의 확정을 기다리는 중.
+  bool get awaitsTimeConfirm => isVotingTime && timeVoteClosed;
+  bool get awaitsPlaceConfirm => isVotingPlace && placeVoteClosed;
+
+  /// 투표 중 후보를 더할 수 있는지. "선택항목 추가 허용"이 꺼져 있으면 약속장만 더한다.
+  bool canAddTimeOption(String userId) => isHost(userId) || timeVoteSettings.allowAdd;
+
+  /// 장소 투표가 아직 없으면 누구나 첫 후보를 올릴 수 있다.
+  bool canAddPlaceOption(String userId) => isHost(userId) || placeOptions.isEmpty || placeVoteSettings.allowAdd;
 
   /// 이 후보 목록에 아직 한 표도 안 던진 사람 수.
   int pendingVotersOf<T>(List<VoteOption<T>> options) {
@@ -117,6 +148,12 @@ class Appointment {
     int? lateCount,
     String? groupId,
     String? imageAsset,
+    VoteSettings? timeVoteSettings,
+    VoteSettings? placeVoteSettings,
+    bool? timeVoteClosed,
+    bool? placeVoteClosed,
+    VoteDuration? timeVoteDuration,
+    VoteDuration? placeVoteDuration,
   }) =>
       Appointment(
         id: id,
@@ -137,5 +174,11 @@ class Appointment {
         groupId: groupId ?? this.groupId,
         imageAsset: imageAsset ?? this.imageAsset,
         createdAt: createdAt,
+        timeVoteSettings: timeVoteSettings ?? this.timeVoteSettings,
+        placeVoteSettings: placeVoteSettings ?? this.placeVoteSettings,
+        timeVoteClosed: timeVoteClosed ?? this.timeVoteClosed,
+        placeVoteClosed: placeVoteClosed ?? this.placeVoteClosed,
+        timeVoteDuration: timeVoteDuration ?? this.timeVoteDuration,
+        placeVoteDuration: placeVoteDuration ?? this.placeVoteDuration,
       );
 }
