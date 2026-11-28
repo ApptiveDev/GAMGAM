@@ -20,7 +20,7 @@ class VoteSettings {
       );
 }
 
-/// 투표 진행 시간. 팀 정책상 시간·장소 투표가 하나를 함께 쓰고, 약속을 만든 시점부터 흐른다.
+/// 투표 진행 시간. 시간·장소 투표가 따로 정하고, 투표 설정을 저장한 시점부터 흐른다(백엔드 `PUT /polls/{type}`).
 enum VoteDuration {
   min30('30분', Duration(minutes: 30)),
   hour1('1시간', Duration(hours: 1)),

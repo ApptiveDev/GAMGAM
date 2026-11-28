@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:gamgam/app.dart';
 import 'package:gamgam/data/models/appointment.dart';
+import 'package:gamgam/data/models/place.dart';
 import 'package:gamgam/data/models/vote_settings.dart';
 import 'package:gamgam/data/repositories/mock_appointment_repository.dart';
 import 'package:gamgam/data/repositories/mock_live_location_repository.dart';
@@ -190,6 +191,16 @@ void main() {
     expect(closed.canAddTimeOption('someone-else'), isFalse);
     expect(closed.canAddPlaceOption('someone-else'), isFalse);
     expect(a.canAddPlaceOption('someone-else'), isTrue, reason: '기본값은 허용');
+  });
+
+  test('투표 진행 시간은 시간·장소가 따로 저장된다', () async {
+    final repo = MockAppointmentRepository();
+    final id = repo.myAppointments.first.id;
+    await repo.startTimeVote(id, times: [DateTime(2026, 12, 1, 19)], settings: const VoteSettings(), duration: VoteDuration.hour1);
+    await repo.startPlaceVote(id, places: const [Place(name: '학교 앞 카페')], settings: const VoteSettings(), duration: VoteDuration.day3);
+    final a = repo.findById(id)!;
+    expect(a.timeVoteDuration, VoteDuration.hour1, reason: '장소 투표가 덮어쓰지 않는다');
+    expect(a.placeVoteDuration, VoteDuration.day3);
   });
 
   testWidgets('위치 공유 시간이 된 약속은 지도 버튼과 남은 시간을 보여준다', (tester) async {

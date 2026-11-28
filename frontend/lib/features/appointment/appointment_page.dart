@@ -251,7 +251,7 @@ class _AppointmentPageState extends State<AppointmentPage> {
         final time = await showDecideTimeSheet(context);
         if (time != null) await repo.decideTime(a.id, time);
       case DecideMethod.vote:
-        final draft = await openTimeVotePage(context, initialDuration: a.voteDuration);
+        final draft = await openTimeVotePage(context, initialDuration: a.timeVoteDuration);
         if (draft != null) await repo.startTimeVote(a.id, times: draft.times, settings: draft.settings, duration: draft.duration);
     }
   }
@@ -274,7 +274,7 @@ class _AppointmentPageState extends State<AppointmentPage> {
         final place = await showDecidePlaceSheet(context);
         if (place != null) await repo.decidePlace(a.id, place);
       case DecideMethod.vote:
-        final draft = await openPlaceVotePage(context, initialDuration: a.voteDuration);
+        final draft = await openPlaceVotePage(context, initialDuration: a.placeVoteDuration);
         if (draft != null) await repo.startPlaceVote(a.id, places: draft.places, settings: draft.settings, duration: draft.duration);
     }
   }

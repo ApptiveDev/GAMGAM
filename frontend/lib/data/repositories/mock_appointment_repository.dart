@@ -182,7 +182,7 @@ class MockAppointmentRepository extends AppointmentRepository {
     _update(appointmentId, (a) => a.copyWith(
           timeOptions: [for (final t in times) TimeOption(id: 't-${t.millisecondsSinceEpoch}', value: t)],
           timeVoteSettings: settings,
-          voteDuration: duration,
+          timeVoteDuration: duration,
         ));
   }
 
@@ -204,7 +204,7 @@ class MockAppointmentRepository extends AppointmentRepository {
     _update(appointmentId, (a) => a.copyWith(
           placeOptions: [for (final (i, p) in places.indexed) PlaceOption(id: 'p$i-${p.name.hashCode}', value: p)],
           placeVoteSettings: settings,
-          voteDuration: duration,
+          placeVoteDuration: duration,
         ));
   }
 
@@ -289,7 +289,8 @@ class MockAppointmentRepository extends AppointmentRepository {
               placeVoteSettings: local.placeVoteSettings,
               timeVoteClosed: local.timeVoteClosed,
               placeVoteClosed: local.placeVoteClosed,
-              voteDuration: local.voteDuration,
+              timeVoteDuration: local.timeVoteDuration,
+              placeVoteDuration: local.placeVoteDuration,
             );
     }
     notifyListeners();

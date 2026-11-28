@@ -31,7 +31,8 @@ class Appointment {
     this.placeVoteSettings = const VoteSettings(),
     this.timeVoteClosed = false,
     this.placeVoteClosed = false,
-    this.voteDuration = VoteDuration.min30,
+    this.timeVoteDuration = VoteDuration.min30,
+    this.placeVoteDuration = VoteDuration.min30,
   });
 
   final String id;
@@ -76,8 +77,9 @@ class Appointment {
   final bool timeVoteClosed;
   final bool placeVoteClosed;
 
-  /// 투표 진행 시간. 시간·장소 투표가 함께 쓴다.
-  final VoteDuration voteDuration;
+  /// 투표 진행 시간. 시간·장소 투표가 따로 정한다(백엔드 `PUT /polls/{type}`·디자인과 같음).
+  final VoteDuration timeVoteDuration;
+  final VoteDuration placeVoteDuration;
 
   bool get isCoordinating => status == AppointmentStatus.coordinating;
   bool get isConfirmed => status == AppointmentStatus.confirmed;
@@ -150,7 +152,8 @@ class Appointment {
     VoteSettings? placeVoteSettings,
     bool? timeVoteClosed,
     bool? placeVoteClosed,
-    VoteDuration? voteDuration,
+    VoteDuration? timeVoteDuration,
+    VoteDuration? placeVoteDuration,
   }) =>
       Appointment(
         id: id,
@@ -175,6 +178,7 @@ class Appointment {
         placeVoteSettings: placeVoteSettings ?? this.placeVoteSettings,
         timeVoteClosed: timeVoteClosed ?? this.timeVoteClosed,
         placeVoteClosed: placeVoteClosed ?? this.placeVoteClosed,
-        voteDuration: voteDuration ?? this.voteDuration,
+        timeVoteDuration: timeVoteDuration ?? this.timeVoteDuration,
+        placeVoteDuration: placeVoteDuration ?? this.placeVoteDuration,
       );
 }
